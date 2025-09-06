@@ -255,6 +255,7 @@ const SubjectSelection = ({ subjects, loading, error, dispatch, onRetry }) => {
 
   return (
     <div className="text-center">
+      <h2 className="text-4xl font-bold text-gray-900 mb-2">Your Tutor</h2>
       <h1 className="text-4xl font-bold text-gray-900 mb-2">A-Level Sciences Mastery</h1>
       <p className="text-gray-600 mb-12">Choose your subject to begin</p>
       
