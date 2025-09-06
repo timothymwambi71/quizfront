@@ -727,14 +727,18 @@ const App = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-4 py-8">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      <div className="container mx-auto px-4 py-8 flex-1">
         <Breadcrumb state={state} dispatch={dispatch} />
         {state.error && !state.loading && (
           <ErrorMessage message={state.error} />
         )}
         {renderContent()}
       </div>
+      <footer className="bg-gray-200 text-center py-4 text-gray-700 text-sm">
+        &copy; {new Date().getFullYear()} YourTutor. All rights reserved.<br />
+        Contact: +256705251258 | Email: timmehta71@gmail.com
+      </footer>
     </div>
   );
 };
