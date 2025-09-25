@@ -5,7 +5,7 @@ import { Clock, Home, BookOpen, CheckCircle, XCircle, RotateCcw, Play, Pause, Lo
 // API Configuration
 // const API_BASE_URL = 'https://quizbackend-tjvb.onrender.com/api';
 // const API_BASE_URL = 'http://localhost:8000/api';
-const API_BASE_URL = 'http://yourtutor.pythonanywhere.com/api';
+const API_BASE_URL = 'https://yourtutor.pythonanywhere.com/api';
 
 // Enhanced API Service with authentication
 const apiService = {
