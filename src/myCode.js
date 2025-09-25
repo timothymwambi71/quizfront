@@ -1,11 +1,9 @@
-import React, { useState, useEffect, useReducer, useCallback } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import { Clock, Home, BookOpen, CheckCircle, XCircle, RotateCcw, Play, Pause, Loader, LogOut, Phone } from 'lucide-react';
+import React, { useState, useEffect, useReducer } from 'react';
+import { Clock, Home, BookOpen, CheckCircle, XCircle, RotateCcw, Play, Pause, Loader, User, LogOut, Phone } from 'lucide-react';
 
 // API Configuration
 // const API_BASE_URL = 'https://quizbackend-tjvb.onrender.com/api';
-// const API_BASE_URL = 'http://localhost:8000/api';
-const API_BASE_URL = 'http://yourtutor.pythonanywhere.com/api';
+const API_BASE_URL = 'http://localhost:8000/api';
 
 // Enhanced API Service with authentication
 const apiService = {
@@ -41,6 +39,33 @@ const apiService = {
 
   async getProfile(token) {
     const response = await fetch(`${API_BASE_URL}/auth/profile/`, {
+      headers: { 'Authorization': `Token ${token}` }
+    });
+    return response.json();
+  },
+
+  // Payment methods
+  async initiatePayment(token, paymentData) {
+    const response = await fetch(`${API_BASE_URL}/payments/initiate/`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Token ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(paymentData)
+    });
+    return response.json();
+  },
+
+  async checkPaymentStatus(token, paymentId) {
+    const response = await fetch(`${API_BASE_URL}/payments/status/${paymentId}/`, {
+      headers: { 'Authorization': `Token ${token}` }
+    });
+    return response.json();
+  },
+
+  async getUserSubscriptions(token) {
+    const response = await fetch(`${API_BASE_URL}/subscriptions/`, {
       headers: { 'Authorization': `Token ${token}` }
     });
     return response.json();
@@ -105,13 +130,6 @@ const apiService = {
       headers: { 'Authorization': `Token ${token}` }
     });
     return response.json();
-  },
-
-  async getUserSubscriptions(token) {
-    const response = await fetch(`${API_BASE_URL}/subscriptions/`, {
-      headers: { 'Authorization': `Token ${token}` }
-    });
-    return response.json();
   }
 };
 
@@ -141,7 +159,12 @@ const initialState = {
   quizResults: null,
   quizStartTime: null,
   
-  // Subscription state
+  // UI state
+  currentView: 'home',
+  
+  // Payment state
+  paymentData: null,
+  paymentStatus: null,
   subscriptions: []
 };
 
@@ -152,25 +175,26 @@ const quizReducer = (state, action) => {
     case 'SET_ERROR':
       return { ...state, error: action.payload, loading: false };
     case 'LOGIN_SUCCESS':
-      // Store token in localStorage for persistence
-      if (action.payload.token) {
-        localStorage.setItem('token', action.payload.token);
-      }
       return { 
         ...state, 
         user: action.payload.user, 
         token: action.payload.token,
         isAuthenticated: true,
+        currentView: 'home',
         error: null 
       };
     case 'LOGOUT':
-      // Clear token from localStorage
-      localStorage.removeItem('token');
       return { 
         ...initialState
       };
+    case 'SET_VIEW':
+      return { ...state, currentView: action.payload };
     case 'SET_SUBJECTS':
       return { ...state, subjects: action.payload, loading: false };
+    case 'SET_PAYMENT_DATA':
+      return { ...state, paymentData: action.payload, currentView: 'payment' };
+    case 'SET_PAYMENT_STATUS':
+      return { ...state, paymentStatus: action.payload };
     case 'SET_SUBSCRIPTIONS':
       return { ...state, subscriptions: action.payload };
     case 'SET_SUBJECT':
@@ -190,7 +214,8 @@ const quizReducer = (state, action) => {
         timeRemaining: action.payload.duration,
         isTimerRunning: true,
         showResults: false,
-        quizStartTime: Date.now()
+        quizStartTime: Date.now(),
+        currentView: 'quiz'
       };
     case 'FINISH_QUIZ':
       return { 
@@ -199,7 +224,8 @@ const quizReducer = (state, action) => {
         isTimerRunning: false,
         showResults: true,
         score: action.payload.score,
-        quizAttemptId: action.payload.quizAttemptId
+        quizAttemptId: action.payload.quizAttemptId,
+        currentView: 'results'
       };
     case 'SET_QUIZ_RESULTS':
       return { ...state, quizResults: action.payload, loading: false };
@@ -224,7 +250,8 @@ const quizReducer = (state, action) => {
         currentSubtopic: null,
         currentQuiz: null,
         isQuizActive: false,
-        showResults: false
+        showResults: false,
+        currentView: 'home'
       };
     default:
       return state;
@@ -241,7 +268,6 @@ const LoadingSpinner = () => (
 
 // Authentication Components
 const LoginForm = ({ state, dispatch }) => {
-  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     username: '',
     password: ''
@@ -265,7 +291,6 @@ const LoginForm = ({ state, dispatch }) => {
             }
           }
         });
-        navigate('/');
       } else {
         dispatch({ type: 'SET_ERROR', payload: 'Invalid credentials' });
       }
@@ -320,7 +345,7 @@ const LoginForm = ({ state, dispatch }) => {
         <p className="text-gray-600">
           Don't have an account?{' '}
           <button 
-            onClick={() => navigate('/register')}
+            onClick={() => dispatch({ type: 'SET_VIEW', payload: 'register' })}
             className="text-blue-500 hover:underline"
           >
             Register here
@@ -332,7 +357,6 @@ const LoginForm = ({ state, dispatch }) => {
 };
 
 const RegisterForm = ({ state, dispatch }) => {
-  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     username: '',
     email: '',
@@ -346,18 +370,6 @@ const RegisterForm = ({ state, dispatch }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    // Client-side validation
-    if (formData.password !== formData.password_confirm) {
-      dispatch({ type: 'SET_ERROR', payload: 'Passwords do not match' });
-      return;
-    }
-    
-    if (formData.password.length < 8) {
-      dispatch({ type: 'SET_ERROR', payload: 'Password must be at least 8 characters long' });
-      return;
-    }
-    
     setLoading(true);
     
     try {
@@ -373,7 +385,6 @@ const RegisterForm = ({ state, dispatch }) => {
             }
           }
         });
-        navigate('/');
       } else {
         const errorMessage = response.errors ? Object.values(response.errors).flat().join(', ') : 'Registration failed';
         dispatch({ type: 'SET_ERROR', payload: errorMessage });
@@ -437,7 +448,7 @@ const RegisterForm = ({ state, dispatch }) => {
               type="text"
               value={formData.last_name}
               onChange={(e) => setFormData({...formData, last_name: e.target.value})}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
+              className="w-full px-3 py-2 border rounded-lg focus:outline-none form:border-blue-500"
               required
             />
           </div>
@@ -497,7 +508,7 @@ const RegisterForm = ({ state, dispatch }) => {
         <p className="text-gray-600">
           Already have an account?{' '}
           <button 
-            onClick={() => navigate('/login')}
+            onClick={() => dispatch({ type: 'SET_VIEW', payload: 'login' })}
             className="text-blue-500 hover:underline"
           >
             Login here
@@ -508,61 +519,179 @@ const RegisterForm = ({ state, dispatch }) => {
   );
 };
 
-// Subscription Activation Component
-const SubscriptionActivation = ({ subject, state, dispatch }) => {
-  const navigate = useNavigate();
-  
-  return (
-    <div className="max-w-lg mx-auto bg-white p-8 rounded-lg shadow-lg text-center">
-      <div className="mb-6">
-        <Phone className="w-16 h-16 text-blue-500 mx-auto mb-4" />
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">Activate Your Subscription</h2>
-      </div>
+// Payment Component
+const PaymentForm = ({ state, dispatch }) => {
+  const [paymentData, setPaymentData] = useState({
+    payment_method: 'MTN',
+    phone_number: ''
+  });
+  const [loading, setLoading] = useState(false);
+  const [paymentInitiated, setPaymentInitiated] = useState(false);
+
+  const subject = state.currentSubject;
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    
+    try {
+      const response = await apiService.initiatePayment(state.token, {
+        subject_id: subject.id,
+        ...paymentData
+      });
       
-      <div className="bg-blue-50 p-6 rounded-lg mb-6">
-        <h3 className="text-xl font-semibold text-gray-900 mb-2">{subject?.name}</h3>
-        <p className="text-2xl font-bold text-blue-600 mb-2">UGX {subject?.price?.toLocaleString()}</p>
+      if (response.success) {
+        setPaymentInitiated(true);
+        dispatch({ type: 'SET_PAYMENT_DATA', payload: response });
+        
+        // Start checking payment status
+        checkPaymentStatus(response.payment_id);
+      } else {
+        dispatch({ type: 'SET_ERROR', payload: response.message });
+      }
+    } catch (error) {
+      dispatch({ type: 'SET_ERROR', payload: 'Payment initiation failed' });
+    }
+    
+    setLoading(false);
+  };
+
+  const checkPaymentStatus = async (paymentId) => {
+    try {
+      const response = await apiService.checkPaymentStatus(state.token, paymentId);
+      if (response.success) {
+        dispatch({ type: 'SET_PAYMENT_STATUS', payload: response.status });
+        
+        if (response.status === 'COMPLETED') {
+          // Refresh subscriptions and go back to subject
+          const subscriptionsResponse = await apiService.getUserSubscriptions(state.token);
+          if (subscriptionsResponse.success) {
+            dispatch({ type: 'SET_SUBSCRIPTIONS', payload: subscriptionsResponse.subscriptions });
+          }
+          setTimeout(() => {
+            dispatch({ type: 'SET_VIEW', payload: 'home' });
+          }, 2000);
+        } else if (response.status === 'PENDING') {
+          // Check again in 5 seconds
+          setTimeout(() => checkPaymentStatus(paymentId), 5000);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking payment status:', error);
+    }
+  };
+
+  if (paymentInitiated) {
+    return (
+      <div className="max-w-md mx-auto bg-white p-8 rounded-lg shadow-lg text-center">
+        <div className="mb-6">
+          {state.paymentStatus === 'COMPLETED' ? (
+            <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
+          ) : state.paymentStatus === 'FAILED' ? (
+            <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          ) : (
+            <Loader className="w-16 h-16 text-blue-500 mx-auto mb-4 animate-spin" />
+          )}
+        </div>
+        
+        <h3 className="text-xl font-bold mb-4">
+          {state.paymentStatus === 'COMPLETED' ? 'Payment Successful!' :
+           state.paymentStatus === 'FAILED' ? 'Payment Failed' :
+           'Processing Payment...'}
+        </h3>
+        
+        <p className="text-gray-600 mb-4">
+          {state.paymentStatus === 'COMPLETED' ? 
+            'Your subscription is now active. You can access all quizzes!' :
+           state.paymentStatus === 'FAILED' ? 
+            'There was an issue with your payment. Please try again.' :
+            `Please check your phone for a payment prompt from ${paymentData.payment_method}.`}
+        </p>
+        
+        {state.paymentStatus !== 'COMPLETED' && (
+          <button
+            onClick={() => {
+              setPaymentInitiated(false);
+            }}
+            className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
+          >
+            Try Again
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-md mx-auto bg-white p-8 rounded-lg shadow-lg">
+      <h2 className="text-2xl font-bold text-center mb-6">Subscribe to {subject?.name}</h2>
+      
+      <div className="bg-blue-50 p-4 rounded-lg mb-6">
+        <h3 className="font-semibold text-lg">{subject?.name}</h3>
+        <p className="text-2xl font-bold text-blue-600">UGX {subject?.price?.toLocaleString()}</p>
         <p className="text-sm text-gray-600">30 days access to all quizzes</p>
       </div>
       
-      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-6">
-        <h4 className="font-bold text-yellow-800 mb-3">To activate your subscription:</h4>
-        <div className="text-left text-yellow-700 space-y-2">
-          <p className="flex items-center">
-            <Phone className="w-4 h-4 mr-2" />
-            <span className="font-semibold">Call or WhatsApp:</span>
-          </p>
-          <p className="ml-6 font-bold text-lg">0705 251 258</p>
-          <p className="ml-6 font-bold text-lg">0780 513 947</p>
+      <form onSubmit={handleSubmit}>
+        <div className="mb-4">
+          <label className="block text-gray-700 text-sm font-bold mb-2">
+            Payment Method
+          </label>
+          <div className="space-y-2">
+            <label className="flex items-center">
+              <input
+                type="radio"
+                value="MTN"
+                checked={paymentData.payment_method === 'MTN'}
+                onChange={(e) => setPaymentData({...paymentData, payment_method: e.target.value})}
+                className="mr-2"
+              />
+              <Phone className="w-5 h-5 mr-2 text-yellow-500" />
+              MTN Mobile Money
+            </label>
+            <label className="flex items-center">
+              <input
+                type="radio"
+                value="AIRTEL"
+                checked={paymentData.payment_method === 'AIRTEL'}
+                onChange={(e) => setPaymentData({...paymentData, payment_method: e.target.value})}
+                className="mr-2"
+              />
+              <Phone className="w-5 h-5 mr-2 text-red-500" />
+              Airtel Money
+            </label>
+          </div>
         </div>
-      </div>
-      
-      <div className="bg-gray-50 p-4 rounded-lg mb-6 text-left">
-        <h5 className="font-semibold text-gray-900 mb-2">What to mention when calling:</h5>
-        <ul className="text-sm text-gray-700 space-y-1 list-disc list-inside">
-          <li>Your username: <span className="font-medium">{state.user?.username}</span></li>
-          <li>Subject you want to subscribe to: <span className="font-medium">{subject?.name}</span></li>
-          <li>Preferred payment method (MTN/Airtel Mobile Money)</li>
-        </ul>
-      </div>
-      
-      <p className="text-sm text-gray-600 mb-6">
-        The admin will help you complete the payment process and activate your subscription immediately.
-      </p>
-      
-      <div className="space-y-4">
-        <button
-          onClick={() => navigate('/')}
-          className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition-colors"
-        >
-          Back to Home
-        </button>
+        
+        <div className="mb-6">
+          <label className="block text-gray-700 text-sm font-bold mb-2">
+            Phone Number
+          </label>
+          <input
+            type="tel"
+            value={paymentData.phone_number}
+            onChange={(e) => setPaymentData({...paymentData, phone_number: e.target.value})}
+            placeholder="0700123456"
+            className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
+            required
+          />
+        </div>
         
         <button
-          onClick={() => window.location.reload()}
-          className="w-full bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600 transition-colors text-sm"
+          type="submit"
+          disabled={loading}
+          className="w-full bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600 transition-colors disabled:opacity-50"
         >
-          I've Already Paid - Refresh Page
+          {loading ? 'Processing...' : `Pay UGX ${subject?.price?.toLocaleString()}`}
+        </button>
+      </form>
+      
+      <div className="text-center mt-4">
+        <button 
+          onClick={() => dispatch({ type: 'SET_VIEW', payload: 'home' })}
+          className="text-gray-500 hover:underline"
+        >
+          Cancel
         </button>
       </div>
     </div>
@@ -571,8 +700,6 @@ const SubscriptionActivation = ({ subject, state, dispatch }) => {
 
 // Header Component
 const Header = ({ state, dispatch }) => {
-  const navigate = useNavigate();
-  
   const handleLogout = async () => {
     try {
       if (state.token) {
@@ -582,7 +709,6 @@ const Header = ({ state, dispatch }) => {
       console.error('Logout error:', error);
     } finally {
       dispatch({ type: 'LOGOUT' });
-      navigate('/');
     }
   };
 
@@ -590,10 +716,7 @@ const Header = ({ state, dispatch }) => {
     <header className="bg-white shadow-sm border-b">
       <div className="container mx-auto px-4 py-3 flex justify-between items-center">
         <button 
-          onClick={() => {
-            dispatch({ type: 'GO_HOME' });
-            navigate('/');
-          }}
+          onClick={() => dispatch({ type: 'GO_HOME' })}
           className="text-2xl font-bold text-blue-600"
         >
           YourTutor
@@ -613,13 +736,13 @@ const Header = ({ state, dispatch }) => {
         ) : (
           <div className="space-x-4">
             <button
-              onClick={() => navigate('/login')}
+              onClick={() => dispatch({ type: 'SET_VIEW', payload: 'login' })}
               className="text-blue-600 hover:text-blue-700"
             >
               Login
             </button>
             <button
-              onClick={() => navigate('/register')}
+              onClick={() => dispatch({ type: 'SET_VIEW', payload: 'register' })}
               className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
             >
               Register
@@ -633,11 +756,9 @@ const Header = ({ state, dispatch }) => {
 
 // Enhanced Subject Selection with subscription info
 const SubjectSelection = ({ subjects, state, dispatch }) => {
-  const navigate = useNavigate();
-  
   const handleSubjectClick = async (subject) => {
     if (!state.isAuthenticated) {
-      navigate('/login');
+      dispatch({ type: 'SET_VIEW', payload: 'login' });
       return;
     }
 
@@ -649,11 +770,11 @@ const SubjectSelection = ({ subjects, state, dispatch }) => {
         // User has access, fetch full subject details with topics
         const subjectDetails = await apiService.fetchSubject(state.token, subject.slug);
         dispatch({ type: 'SET_SUBJECT', payload: subjectDetails });
-        navigate(`/subjects/${subject.slug}`);
+        dispatch({ type: 'SET_VIEW', payload: 'topics' });
       } else {
-        // Show subscription activation form
+        // Show payment form
         dispatch({ type: 'SET_SUBJECT', payload: subject });
-        navigate(`/subjects/${subject.slug}/activate`);
+        dispatch({ type: 'SET_VIEW', payload: 'payment' });
       }
     } catch (error) {
       dispatch({ type: 'SET_ERROR', payload: 'Failed to check access' });
@@ -696,7 +817,7 @@ const SubjectSelection = ({ subjects, state, dispatch }) => {
                 <p className="text-sm opacity-90">UGX {subject.price?.toLocaleString()}/month</p>
               </button>
               
-              {status.hasAccess && (
+              {(
                 <div className="absolute -top-2 -right-2 bg-green-500 text-white px-2 py-1 rounded-full text-xs">
                   {status.daysLeft} days left
                 </div>
@@ -711,14 +832,12 @@ const SubjectSelection = ({ subjects, state, dispatch }) => {
 
 // Topic Selection Component
 const TopicSelection = ({ subject, state, dispatch }) => {
-  const navigate = useNavigate();
-  
   const handleTopicClick = async (topic) => {
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
       const topicDetails = await apiService.fetchTopic(state.token, subject.slug, topic.slug);
       dispatch({ type: 'SET_TOPIC', payload: topicDetails });
-      navigate(`/subjects/${subject.slug}/topics/${topic.slug}`);
+      dispatch({ type: 'SET_VIEW', payload: 'subtopics' });
     } catch (error) {
       dispatch({ type: 'SET_ERROR', payload: 'Failed to load topic details' });
     } finally {
@@ -748,8 +867,6 @@ const TopicSelection = ({ subject, state, dispatch }) => {
 
 // Subtopic Selection Component
 const SubtopicSelection = ({ topic, state, dispatch }) => {
-  const navigate = useNavigate();
-  
   const handleSubtopicClick = async (subtopic) => {
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
@@ -769,7 +886,6 @@ const SubtopicSelection = ({ topic, state, dispatch }) => {
             duration: 300 // 5 minutes per quiz
           } 
         });
-        navigate(`/quiz/${subtopic.id}`);
       } else {
         dispatch({ type: 'SET_ERROR', payload: response.message });
       }
@@ -834,14 +950,12 @@ const Timer = ({ timeRemaining, isRunning, onToggle }) => {
 
 // Quiz Component
 const Quiz = ({ state, dispatch }) => {
-  const navigate = useNavigate();
-  
   if (!state.currentQuiz?.questions || state.currentQuiz.questions.length === 0) {
     return (
       <div className="text-center">
         <p className="text-gray-600">No questions available for this quiz.</p>
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => dispatch({ type: 'SET_VIEW', payload: 'subtopics' })}
           className="mt-4 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
         >
           Back to Subtopics
@@ -897,8 +1011,6 @@ const Quiz = ({ state, dispatch }) => {
         if (detailedResults.success) {
           dispatch({ type: 'SET_QUIZ_RESULTS', payload: detailedResults });
         }
-        
-        navigate(`/results/${result.quiz_attempt_id}`);
       } else {
         dispatch({ type: 'SET_ERROR', payload: result.error || 'Failed to submit quiz' });
       }
@@ -994,8 +1106,6 @@ const Quiz = ({ state, dispatch }) => {
 
 // Results Component
 const Results = ({ state, dispatch }) => {
-  const navigate = useNavigate();
-  
   if (!state.quizResults) {
     return <LoadingSpinner />;
   }
@@ -1099,7 +1209,7 @@ const Results = ({ state, dispatch }) => {
 
       <div className="flex space-x-4 justify-center">
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => dispatch({ type: 'SET_VIEW', payload: 'subtopics' })}
           className="flex items-center px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
         >
           <RotateCcw className="w-5 h-5 mr-2" />
@@ -1107,10 +1217,7 @@ const Results = ({ state, dispatch }) => {
         </button>
         
         <button
-          onClick={() => {
-            dispatch({ type: 'GO_HOME' });
-            navigate('/');
-          }}
+          onClick={() => dispatch({ type: 'GO_HOME' })}
           className="flex items-center px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
         >
           <Home className="w-5 h-5 mr-2" />
@@ -1121,54 +1228,21 @@ const Results = ({ state, dispatch }) => {
   );
 };
 
-// Protected Route Component
-const ProtectedRoute = ({ children, isAuthenticated }) => {
-  const navigate = useNavigate();
-  
-  useEffect(() => {
-    if (!isAuthenticated) {
-      navigate('/login');
-    }
-  }, [isAuthenticated, navigate]);
-
-  return isAuthenticated ? children : <LoadingSpinner />;
-};
-
 // Main App Component
-const AppContent = () => {
+const App = () => {
   const [state, dispatch] = useReducer(quizReducer, initialState);
 
   // Initialize authentication from localStorage
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
-      // Fetch user profile to get the actual username
-      const loadUserProfile = async () => {
-        try {
-          const profileResponse = await apiService.getProfile(token);
-          if (profileResponse.success || profileResponse.username) {
-            dispatch({ 
-              type: 'LOGIN_SUCCESS', 
-              payload: { 
-                token: token,
-                user: { 
-                  id: profileResponse.id || profileResponse.user_id,
-                  username: profileResponse.username || profileResponse.user?.username
-                }
-              }
-            });
-          } else {
-            // If profile fetch fails, remove invalid token
-            localStorage.removeItem('token');
-          }
-        } catch (error) {
-          // If profile fetch fails, remove invalid token
-          localStorage.removeItem('token');
-          console.error('Failed to load user profile:', error);
+      dispatch({ 
+        type: 'LOGIN_SUCCESS', 
+        payload: { 
+          token: token,
+          user: { username: 'User' } // Will be updated when profile loads
         }
-      };
-      
-      loadUserProfile();
+      });
     }
   }, []);
 
@@ -1202,7 +1276,19 @@ const AppContent = () => {
   }, [state.isAuthenticated, state.token]);
 
   // Timer effect
-  const handleAutoSubmit = useCallback(async () => {
+  useEffect(() => {
+    let timer;
+    if (state.isTimerRunning && state.timeRemaining > 0) {
+      timer = setInterval(() => {
+        dispatch({ type: 'TICK_TIMER' });
+      }, 1000);
+    } else if (state.timeRemaining === 0 && state.isQuizActive) {
+      handleAutoSubmit();
+    }
+    return () => clearInterval(timer);
+  }, [state.isTimerRunning, state.timeRemaining, state.isQuizActive]);
+
+  const handleAutoSubmit = async () => {
     try {
       const timeTaken = Math.floor((Date.now() - state.quizStartTime) / 1000);
       
@@ -1230,19 +1316,36 @@ const AppContent = () => {
     } catch (error) {
       dispatch({ type: 'SET_ERROR', payload: error.message });
     }
-  }, [state.token, state.currentSubtopic?.id, state.answers, state.quizStartTime]);
+  };
 
-  useEffect(() => {
-    let timer;
-    if (state.isTimerRunning && state.timeRemaining > 0) {
-      timer = setInterval(() => {
-        dispatch({ type: 'TICK_TIMER' });
-      }, 1000);
-    } else if (state.timeRemaining === 0 && state.isQuizActive) {
-      handleAutoSubmit();
+  const renderContent = () => {
+    if (state.loading) return <LoadingSpinner />;
+    
+    switch (state.currentView) {
+      case 'login':
+        return <LoginForm state={state} dispatch={dispatch} />;
+      case 'register':
+        return <RegisterForm state={state} dispatch={dispatch} />;
+      case 'payment':
+        return <PaymentForm state={state} dispatch={dispatch} />;
+      case 'topics':
+        return <TopicSelection subject={state.currentSubject} state={state} dispatch={dispatch} />;
+      case 'subtopics':
+        return <SubtopicSelection topic={state.currentTopic} state={state} dispatch={dispatch} />;
+      case 'quiz':
+        return <Quiz state={state} dispatch={dispatch} />;
+      case 'results':
+        return <Results state={state} dispatch={dispatch} />;
+      default:
+        return (
+          <SubjectSelection 
+            subjects={state.subjects} 
+            state={state} 
+            dispatch={dispatch} 
+          />
+        );
     }
-    return () => clearInterval(timer);
-  }, [state.isTimerRunning, state.timeRemaining, state.isQuizActive, handleAutoSubmit]);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -1254,108 +1357,14 @@ const AppContent = () => {
             {state.error}
           </div>
         )}
-        
-        <Routes>
-          <Route 
-            path="/" 
-            element={
-              <SubjectSelection 
-                subjects={state.subjects} 
-                state={state} 
-                dispatch={dispatch} 
-              />
-            } 
-          />
-          <Route 
-            path="/login" 
-            element={
-              state.isAuthenticated ? 
-              <Navigate to="/" replace /> : 
-              <LoginForm state={state} dispatch={dispatch} />
-            } 
-          />
-          <Route 
-            path="/register" 
-            element={
-              state.isAuthenticated ? 
-              <Navigate to="/" replace /> : 
-              <RegisterForm state={state} dispatch={dispatch} />
-            } 
-          />
-          <Route 
-            path="/subjects/:subjectSlug" 
-            element={
-              <ProtectedRoute isAuthenticated={state.isAuthenticated}>
-                {state.currentSubject && (
-                  <TopicSelection 
-                    subject={state.currentSubject} 
-                    state={state} 
-                    dispatch={dispatch} 
-                  />
-                )}
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/subjects/:subjectSlug/activate" 
-            element={
-              <ProtectedRoute isAuthenticated={state.isAuthenticated}>
-                <SubscriptionActivation 
-                  subject={state.currentSubject} 
-                  state={state} 
-                  dispatch={dispatch} 
-                />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/subjects/:subjectSlug/topics/:topicSlug" 
-            element={
-              <ProtectedRoute isAuthenticated={state.isAuthenticated}>
-                {state.currentTopic && (
-                  <SubtopicSelection 
-                    topic={state.currentTopic} 
-                    state={state} 
-                    dispatch={dispatch} 
-                  />
-                )}
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/quiz/:subtopicId" 
-            element={
-              <ProtectedRoute isAuthenticated={state.isAuthenticated}>
-                <Quiz state={state} dispatch={dispatch} />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/results/:attemptId" 
-            element={
-              <ProtectedRoute isAuthenticated={state.isAuthenticated}>
-                <Results state={state} dispatch={dispatch} />
-              </ProtectedRoute>
-            } 
-          />
-          {/* Catch all route - redirect to home */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        {renderContent()}
       </div>
       
       <footer className="bg-gray-200 text-center py-4 text-gray-700 text-sm">
         &copy; {new Date().getFullYear()} YourTutor. All rights reserved.<br />
-        Contact: +256705251258 / +256780513947 | Email: timmehta71@gmail.com
+        Contact: +256705251258 | Email: timmehta71@gmail.com
       </footer>
     </div>
-  );
-};
-
-const App = () => {
-  return (
-    <Router>
-      <AppContent />
-    </Router>
   );
 };
 
