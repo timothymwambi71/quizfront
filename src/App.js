@@ -2512,3 +2512,12 @@ const App = () => {
 
   return user ? <Layout /> : <LoginForm />;
 };
+
+// Root App with Auth Provider
+export default function QuizApp() {
+  return (
+    <AuthProvider>
+      <App />
+    </AuthProvider>
+  );
+}
