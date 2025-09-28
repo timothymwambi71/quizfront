@@ -898,15 +898,20 @@ const PasswordResetConfirm = ({ token, onComplete }) => {
   );
 };
 
-// Password Reset Handler Component
+// Password Reset Handler Component - UPDATED VERSION
 const PasswordResetHandler = () => {
   const [token, setToken] = useState('');
   const [validToken, setValidToken] = useState(null);
   
   useEffect(() => {
-    // Extract token from URL params (e.g., /reset-password?token=abc123)
-    const urlParams = new URLSearchParams(window.location.search);
-    const resetToken = urlParams.get('token');
+    // First try URL search params
+    let resetToken = new URLSearchParams(window.location.search).get('token');
+    
+    // If not found in search params, try hash
+    if (!resetToken && window.location.hash) {
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      resetToken = hashParams.get('token');
+    }
     
     if (resetToken) {
       setToken(resetToken);
@@ -956,6 +961,7 @@ const PasswordResetHandler = () => {
     </div>
   );
 };
+
 
 // Enhanced Quiz Component
 const Quiz = ({ state, dispatch, navigate }) => {
@@ -2479,37 +2485,30 @@ const Layout = () => {
 
   // Main App Component
   // 5. FIND your main App component and REPLACE it with this:
-  const App = () => {
-    const { user, loading } = useAuth();
-    
-    // Check if this is a password reset URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const isPasswordReset = urlParams.has('token');
+// Updated App Component
+const App = () => {
+  const { user, loading } = useAuth();
+  
+  // Check if this is a password reset URL - check both search params and hash
+  const urlParams = new URLSearchParams(window.location.search);
+  const hashParams = new URLSearchParams(window.location.hash.substring(1));
+  const isPasswordReset = urlParams.has('token') || hashParams.has('token');
 
-    if (loading) {
-      return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading...</p>
-          </div>
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
         </div>
-      );
-    }
+      </div>
+    );
+  }
 
-    // Handle password reset URLs
-    if (isPasswordReset) {
-      return <PasswordResetHandler />;
-    }
+  // Handle password reset URLs
+  if (isPasswordReset) {
+    return <PasswordResetHandler />;
+  }
 
-    return user ? <Layout /> : <LoginForm />;
-  };
-
-// Root App with Auth Provider
-export default function QuizApp() {
-  return (
-    <AuthProvider>
-      <App />
-    </AuthProvider>
-  );
-}
+  return user ? <Layout /> : <LoginForm />;
+};
