@@ -1,95 +1,36 @@
-import React, { useState, useEffect, useReducer, useCallback } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import { Clock, Home, BookOpen, CheckCircle, XCircle, RotateCcw, Play, Pause, Loader, LogOut, Phone } from 'lucide-react';
+import React, { useState, useEffect, useReducer } from 'react';
+import { User, BookOpen, Trophy, Clock, CheckCircle, XCircle, BarChart3, CreditCard, LogOut, Settings, Home, ArrowRight, Target, TrendingUp, Award, RotateCcw, Phone } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 
-// API Configuration
-// const API_BASE_URL = 'https://quizbackend-tjvb.onrender.com/api';
-//const API_BASE_URL = 'http://localhost:8000/api';
-const API_BASE_URL = 'https://yourtutor.pythonanywhere.com/api';
+const API_BASE_URL = 'http://localhost:8000/api'; // Adjust to your backend URL
 
-// Enhanced API Service with authentication
+// Auth Context
+const AuthContext = React.createContext();
+
+// Utility functions
+const formatDate = (dateString) => {
+  return new Date(dateString).toLocaleDateString('en-UG', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  });
+};
+
+const formatTime = (seconds) => {
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+};
+
+// API service
 const apiService = {
-  // Authentication methods
-  async register(userData) {
-    const response = await fetch(`${API_BASE_URL}/auth/register/`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(userData)
-    });
-    return response.json();
-  },
-
-  async login(credentials) {
-    const response = await fetch(`${API_BASE_URL}/auth/login/`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(credentials)
-    });
-    return response.json();
-  },
-
-  async logout(token) {
-    const response = await fetch(`${API_BASE_URL}/auth/logout/`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Token ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
-    return response.json();
-  },
-
-  async getProfile(token) {
-    const response = await fetch(`${API_BASE_URL}/auth/profile/`, {
-      headers: { 'Authorization': `Token ${token}` }
-    });
-    return response.json();
-  },
-
-  async checkSubjectAccess(token, subjectSlug) {
-    const response = await fetch(`${API_BASE_URL}/subjects/${subjectSlug}/access/`, {
-      headers: { 'Authorization': `Token ${token}` }
-    });
-    return response.json();
-  },
-
-  // Enhanced existing methods with authentication
-  async fetchSubjects(token = null) {
-    const headers = token ? { 'Authorization': `Token ${token}` } : {};
-    const response = await fetch(`${API_BASE_URL}/subjects/`, { headers });
-    if (!response.ok) throw new Error('Failed to fetch subjects');
-    return response.json();
-  },
-
-  async fetchSubject(token, slug) {
-    const response = await fetch(`${API_BASE_URL}/subjects/${slug}/`, {
-      headers: { 'Authorization': `Token ${token}` }
-    });
-    if (!response.ok) throw new Error('Failed to fetch subject');
-    return response.json();
-  },
-
-  async fetchTopic(token, subjectSlug, topicSlug) {
-    const response = await fetch(`${API_BASE_URL}/subjects/${subjectSlug}/topics/${topicSlug}/`, {
-      headers: { 'Authorization': `Token ${token}` }
-    });
-    if (!response.ok) throw new Error('Failed to fetch topic');
-    return response.json();
-  },
-
-  async fetchSubtopic(token, subjectSlug, topicSlug, subtopicSlug) {
-    const response = await fetch(`${API_BASE_URL}/subjects/${subjectSlug}/topics/${topicSlug}/subtopics/${subtopicSlug}/`, {
-      headers: { 'Authorization': `Token ${token}` }
-    });
-    return response.json();
-  },
-
+  // Add these methods to your existing apiService object:
   async submitQuiz(token, subtopicId, answers, timeTaken) {
-    const response = await fetch(`${API_BASE_URL}/quiz/submit/`, {
+    return this.request('/quiz/submit/', {
       method: 'POST',
       headers: {
-        'Authorization': `Token ${token}`,
-        'Content-Type': 'application/json',
+        Authorization: `Token ${token}`,
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         subtopic_id: subtopicId,
@@ -97,745 +38,425 @@ const apiService = {
         time_taken: timeTaken
       })
     });
-    return response.json();
   },
 
   async getQuizResults(token, attemptId) {
-    const response = await fetch(`${API_BASE_URL}/quiz/results/${attemptId}/`, {
-      headers: { 'Authorization': `Token ${token}` }
+    return this.request(`/quiz/results/${attemptId}/`, {
+      headers: {
+        Authorization: `Token ${token}`
+      }
     });
-    return response.json();
+  },
+  async request(endpoint, options = {}) {
+    const token = localStorage.getItem('token');
+    const config = {
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { Authorization: `Token ${token}` }),
+        ...options.headers
+      },
+      ...options
+    };
+
+    try {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || 'API request failed');
+      }
+      
+      return data;
+    } catch (error) {
+      console.error(`API Error (${endpoint}):`, error);
+      throw error;
+    }
   },
 
-  async getUserSubscriptions(token) {
-    const response = await fetch(`${API_BASE_URL}/subscriptions/`, {
-      headers: { 'Authorization': `Token ${token}` }
+  // Auth endpoints
+  async login(username, password) {
+    return this.request('/auth/login/', {
+      method: 'POST',
+      body: JSON.stringify({ username, password })
     });
-    return response.json();
+  },
+
+  async register(userData) {
+    return this.request('/auth/register/', {
+      method: 'POST',
+      body: JSON.stringify(userData)
+    });
+  },
+
+  async getProfile() {
+    return this.request('/auth/profile/');
+  },
+
+  // Quiz endpoints
+  async getSubjects() {
+    return this.request('/subjects/');
+  },
+
+  async getSubject(slug) {
+    return this.request(`/subjects/${slug}/`);
+  },
+
+  async getSubtopic(subjectSlug, topicSlug, subtopicSlug) {
+    return this.request(`/subjects/${subjectSlug}/topics/${topicSlug}/subtopics/${subtopicSlug}/`);
+  },
+
+
+  // Subscription endpoints
+  async getSubscriptions() {
+    return this.request('/subscriptions/');
+  },
+
+  //Get quiz attempts
+  async getQuizAttempts() {
+    return this.request('/quiz/attempts/');
+  },
+  
+
+  async checkSubjectAccess(subjectSlug) {
+    return this.request(`/subjects/${subjectSlug}/access/`);
+  },
+
+  // Payment endpoints
+  async initiatePayment(paymentData) {
+    return this.request('/payments/initiate/', {
+      method: 'POST',
+      body: JSON.stringify(paymentData)
+    });
+  },
+
+  async getPaymentHistory() {
+    return this.request('/payments/history/');
   }
 };
 
-// Enhanced state management
-const initialState = {
-  // Authentication state
-  user: null,
-  token: null,
-  isAuthenticated: false,
-  
-  // App state
-  subjects: [],
-  currentSubject: null,
-  currentTopic: null,
-  currentSubtopic: null,
+// Quiz State Management
+const initialQuizState = {
   currentQuiz: null,
   currentQuestionIndex: 0,
   answers: [],
-  score: 0,
-  isQuizActive: false,
-  timeRemaining: 600,
+  quizStartTime: null,
+  timeRemaining: 0,
   isTimerRunning: false,
-  showResults: false,
   loading: false,
   error: null,
-  quizAttemptId: null,
   quizResults: null,
-  quizStartTime: null,
-  
-  // Subscription state
-  subscriptions: []
+  currentSubtopic: null,
+  token: null
 };
 
 const quizReducer = (state, action) => {
   switch (action.type) {
-    case 'SET_LOADING':
-      return { ...state, loading: action.payload, error: null };
-    case 'SET_ERROR':
-      return { ...state, error: action.payload, loading: false };
-    case 'LOGIN_SUCCESS':
-      // Store token in localStorage for persistence
-      if (action.payload.token) {
-        localStorage.setItem('token', action.payload.token);
-      }
-      return { 
-        ...state, 
-        user: action.payload.user, 
-        token: action.payload.token,
-        isAuthenticated: true,
-        error: null 
-      };
-    case 'LOGOUT':
-      // Clear token from localStorage
-      localStorage.removeItem('token');
-      return { 
-        ...initialState
-      };
-    case 'SET_SUBJECTS':
-      return { ...state, subjects: action.payload, loading: false };
-    case 'SET_SUBSCRIPTIONS':
-      return { ...state, subscriptions: action.payload };
-    case 'SET_SUBJECT':
-      return { ...state, currentSubject: action.payload, currentTopic: null, currentSubtopic: null };
-    case 'SET_TOPIC':
-      return { ...state, currentTopic: action.payload, currentSubtopic: null };
-    case 'SET_SUBTOPIC':
-      return { ...state, currentSubtopic: action.payload };
     case 'START_QUIZ':
-      return { 
-        ...state, 
-        currentQuiz: action.payload.quiz, 
-        isQuizActive: true, 
+      return {
+        ...state,
+        currentQuiz: action.payload.quiz,
+        currentSubtopic: action.payload.subtopic,
+        answers: new Array(action.payload.quiz.questions.length).fill(null),
         currentQuestionIndex: 0,
-        answers: [],
-        score: 0,
-        timeRemaining: action.payload.duration,
+        quizStartTime: Date.now(),
+        timeRemaining: action.payload.timeLimit || 0,
         isTimerRunning: true,
-        showResults: false,
-        quizStartTime: Date.now()
+        error: null
       };
-    case 'FINISH_QUIZ':
-      return { 
-        ...state, 
-        isQuizActive: false,
-        isTimerRunning: false,
-        showResults: true,
-        score: action.payload.score,
-        quizAttemptId: action.payload.quizAttemptId
-      };
-    case 'SET_QUIZ_RESULTS':
-      return { ...state, quizResults: action.payload, loading: false };
     case 'ANSWER_QUESTION':
       const newAnswers = [...state.answers];
       newAnswers[state.currentQuestionIndex] = action.payload;
       return { ...state, answers: newAnswers };
     case 'NEXT_QUESTION':
-      return { ...state, currentQuestionIndex: state.currentQuestionIndex + 1 };
+      return {
+        ...state,
+        currentQuestionIndex: Math.min(state.currentQuestionIndex + 1, state.currentQuiz.questions.length - 1)
+      };
     case 'PREVIOUS_QUESTION':
-      return { ...state, currentQuestionIndex: Math.max(0, state.currentQuestionIndex - 1) };
-    case 'TICK_TIMER':
-      const newTime = state.timeRemaining - 1;
-      return { ...state, timeRemaining: Math.max(0, newTime) };
+      return {
+        ...state,
+        currentQuestionIndex: Math.max(state.currentQuestionIndex - 1, 0)
+      };
     case 'TOGGLE_TIMER':
       return { ...state, isTimerRunning: !state.isTimerRunning };
-    case 'GO_HOME':
-      return { 
+    case 'UPDATE_TIMER':
+      return { ...state, timeRemaining: Math.max(0, state.timeRemaining - 1) };
+    case 'SET_LOADING':
+      return { ...state, loading: action.payload };
+    case 'SET_ERROR':
+      return { ...state, error: action.payload, loading: false };
+    case 'FINISH_QUIZ':
+      return {
         ...state,
-        currentSubject: null,
-        currentTopic: null,
-        currentSubtopic: null,
-        currentQuiz: null,
-        isQuizActive: false,
-        showResults: false
+        quizResults: action.payload,
+        isTimerRunning: false,
+        loading: false
       };
+    case 'SET_QUIZ_RESULTS':
+      return { ...state, quizResults: action.payload };
+    case 'RESET_QUIZ':
+      return { ...initialQuizState, token: state.token };
+    case 'GO_HOME':
+      return { ...initialQuizState, token: state.token };
+    case 'SET_TOKEN':
+      return { ...state, token: action.payload };
     default:
       return state;
   }
 };
 
-// Loading Spinner Component
-const LoadingSpinner = () => (
-  <div className="flex justify-center items-center py-8">
-    <Loader className="w-8 h-8 animate-spin text-blue-500" />
-    <span className="ml-2 text-gray-600">Loading...</span>
-  </div>
-);
-
-// Authentication Components
-const LoginForm = ({ state, dispatch }) => {
-  const navigate = useNavigate();
-  const [formData, setFormData] = useState({
-    username: '',
-    password: ''
-  });
-  const [loading, setLoading] = useState(false);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    
-    try {
-      const response = await apiService.login(formData);
-      if (response.success) {
-        dispatch({ 
-          type: 'LOGIN_SUCCESS', 
-          payload: { 
-            token: response.token,
-            user: { 
-              id: response.user_id,
-              username: response.username 
-            }
-          }
-        });
-        navigate('/');
-      } else {
-        dispatch({ type: 'SET_ERROR', payload: 'Invalid credentials' });
-      }
-    } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: 'Login failed. Please try again.' });
-    }
-    
-    setLoading(false);
-  };
-
-  return (
-    <div className="max-w-md mx-auto bg-white p-8 rounded-lg shadow-lg">
-      <h2 className="text-2xl font-bold text-center mb-6">Login to YourTutor</h2>
-      
-      <form onSubmit={handleSubmit}>
-        <div className="mb-4">
-          <label className="block text-gray-700 text-sm font-bold mb-2">
-            Username
-          </label>
-          <input
-            type="text"
-            value={formData.username}
-            onChange={(e) => setFormData({...formData, username: e.target.value})}
-            className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
-            required
-          />
-        </div>
-        
-        <div className="mb-6">
-          <label className="block text-gray-700 text-sm font-bold mb-2">
-            Password
-          </label>
-          <input
-            type="password"
-            value={formData.password}
-            onChange={(e) => setFormData({...formData, password: e.target.value})}
-            className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
-            required
-          />
-        </div>
-        
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50"
-        >
-          {loading ? 'Logging in...' : 'Login'}
-        </button>
-      </form>
-      
-      <div className="text-center mt-4">
-        <p className="text-gray-600">
-          Don't have an account?{' '}
-          <button 
-            onClick={() => navigate('/register')}
-            className="text-blue-500 hover:underline"
-          >
-            Register here
-          </button>
-        </p>
-      </div>
-    </div>
-  );
-};
-
-const RegisterForm = ({ state, dispatch }) => {
-  const navigate = useNavigate();
-  const [formData, setFormData] = useState({
-    username: '',
-    email: '',
-    first_name: '',
-    last_name: '',
-    phone_number: '',
-    password: '',
-    password_confirm: ''
-  });
-  const [loading, setLoading] = useState(false);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    // Client-side validation
-    if (formData.password !== formData.password_confirm) {
-      dispatch({ type: 'SET_ERROR', payload: 'Passwords do not match' });
-      return;
-    }
-    
-    if (formData.password.length < 8) {
-      dispatch({ type: 'SET_ERROR', payload: 'Password must be at least 8 characters long' });
-      return;
-    }
-    
-    setLoading(true);
-    
-    try {
-      const response = await apiService.register(formData);
-      if (response.success) {
-        dispatch({ 
-          type: 'LOGIN_SUCCESS', 
-          payload: { 
-            token: response.token,
-            user: { 
-              id: response.user_id,
-              username: response.username 
-            }
-          }
-        });
-        navigate('/');
-      } else {
-        const errorMessage = response.errors ? Object.values(response.errors).flat().join(', ') : 'Registration failed';
-        dispatch({ type: 'SET_ERROR', payload: errorMessage });
-      }
-    } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: 'Registration failed. Please try again.' });
-    }
-    
-    setLoading(false);
-  };
-
-  return (
-    <div className="max-w-md mx-auto bg-white p-8 rounded-lg shadow-lg">
-      <h2 className="text-2xl font-bold text-center mb-6">Register for YourTutor</h2>
-      
-      <form onSubmit={handleSubmit}>
-        <div className="mb-4">
-          <label className="block text-gray-700 text-sm font-bold mb-2">
-            Username
-          </label>
-          <input
-            type="text"
-            value={formData.username}
-            onChange={(e) => setFormData({...formData, username: e.target.value})}
-            className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
-            required
-          />
-        </div>
-        
-        <div className="mb-4">
-          <label className="block text-gray-700 text-sm font-bold mb-2">
-            Email
-          </label>
-          <input
-            type="email"
-            value={formData.email}
-            onChange={(e) => setFormData({...formData, email: e.target.value})}
-            className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
-            required
-          />
-        </div>
-        
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          <div>
-            <label className="block text-gray-700 text-sm font-bold mb-2">
-              First Name
-            </label>
-            <input
-              type="text"
-              value={formData.first_name}
-              onChange={(e) => setFormData({...formData, first_name: e.target.value})}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-gray-700 text-sm font-bold mb-2">
-              Last Name
-            </label>
-            <input
-              type="text"
-              value={formData.last_name}
-              onChange={(e) => setFormData({...formData, last_name: e.target.value})}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
-              required
-            />
-          </div>
-        </div>
-        
-        <div className="mb-4">
-          <label className="block text-gray-700 text-sm font-bold mb-2">
-            Phone Number
-          </label>
-          <input
-            type="tel"
-            value={formData.phone_number}
-            onChange={(e) => setFormData({...formData, phone_number: e.target.value})}
-            placeholder="0700123456 or +256700123456"
-            className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
-            required
-          />
-        </div>
-        
-        <div className="mb-4">
-          <label className="block text-gray-700 text-sm font-bold mb-2">
-            Password
-          </label>
-          <input
-            type="password"
-            value={formData.password}
-            onChange={(e) => setFormData({...formData, password: e.target.value})}
-            className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
-            minLength="8"
-            required
-          />
-        </div>
-        
-        <div className="mb-6">
-          <label className="block text-gray-700 text-sm font-bold mb-2">
-            Confirm Password
-          </label>
-          <input
-            type="password"
-            value={formData.password_confirm}
-            onChange={(e) => setFormData({...formData, password_confirm: e.target.value})}
-            className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
-            required
-          />
-        </div>
-        
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600 transition-colors disabled:opacity-50"
-        >
-          {loading ? 'Creating Account...' : 'Register'}
-        </button>
-      </form>
-      
-      <div className="text-center mt-4">
-        <p className="text-gray-600">
-          Already have an account?{' '}
-          <button 
-            onClick={() => navigate('/login')}
-            className="text-blue-500 hover:underline"
-          >
-            Login here
-          </button>
-        </p>
-      </div>
-    </div>
-  );
-};
-
-// Subscription Activation Component
-const SubscriptionActivation = ({ subject, state, dispatch }) => {
-  const navigate = useNavigate();
-  
-  return (
-    <div className="max-w-lg mx-auto bg-white p-8 rounded-lg shadow-lg text-center">
-      <div className="mb-6">
-        <Phone className="w-16 h-16 text-blue-500 mx-auto mb-4" />
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">Activate Your Subscription</h2>
-      </div>
-      
-      <div className="bg-blue-50 p-6 rounded-lg mb-6">
-        <h3 className="text-xl font-semibold text-gray-900 mb-2">{subject?.name}</h3>
-        <p className="text-2xl font-bold text-blue-600 mb-2">UGX {subject?.price?.toLocaleString()}</p>
-        <p className="text-sm text-gray-600">30 days access to all quizzes</p>
-      </div>
-      
-      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-6">
-        <h4 className="font-bold text-yellow-800 mb-3">To activate your subscription:</h4>
-        <div className="text-left text-yellow-700 space-y-2">
-          <p className="flex items-center">
-            <Phone className="w-4 h-4 mr-2" />
-            <span className="font-semibold">Call or WhatsApp:</span>
-          </p>
-          <p className="ml-6 font-bold text-lg">0705 251 258</p>
-          <p className="ml-6 font-bold text-lg">0780 513 947</p>
-        </div>
-      </div>
-      
-      <div className="bg-gray-50 p-4 rounded-lg mb-6 text-left">
-        <h5 className="font-semibold text-gray-900 mb-2">What to mention when calling:</h5>
-        <ul className="text-sm text-gray-700 space-y-1 list-disc list-inside">
-          <li>Your username: <span className="font-medium">{state.user?.username}</span></li>
-          <li>Subject you want to subscribe to: <span className="font-medium">{subject?.name}</span></li>
-          <li>Preferred payment method (MTN/Airtel Mobile Money)</li>
-        </ul>
-      </div>
-      
-      <p className="text-sm text-gray-600 mb-6">
-        The admin will help you complete the payment process and activate your subscription immediately.
-      </p>
-      
-      <div className="space-y-4">
-        <button
-          onClick={() => navigate('/')}
-          className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition-colors"
-        >
-          Back to Home
-        </button>
-        
-        <button
-          onClick={() => window.location.reload()}
-          className="w-full bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600 transition-colors text-sm"
-        >
-          I've Already Paid - Refresh Page
-        </button>
-      </div>
-    </div>
-  );
-};
-
-// Header Component
-const Header = ({ state, dispatch }) => {
-  const navigate = useNavigate();
-  
-  const handleLogout = async () => {
-    try {
-      if (state.token) {
-        await apiService.logout(state.token);
-      }
-    } catch (error) {
-      console.error('Logout error:', error);
-    } finally {
-      dispatch({ type: 'LOGOUT' });
-      navigate('/');
-    }
-  };
-
-  return (
-    <header className="bg-white shadow-sm border-b">
-      <div className="container mx-auto px-4 py-3 flex justify-between items-center">
-        <button 
-          onClick={() => {
-            dispatch({ type: 'GO_HOME' });
-            navigate('/');
-          }}
-          className="text-2xl font-bold text-blue-600"
-        >
-          YourTutor
-        </button>
-        
-        {state.isAuthenticated ? (
-          <div className="flex items-center space-x-4">
-            <span className="text-gray-600">Welcome, {state.user?.username}</span>
-            <button
-              onClick={handleLogout}
-              className="flex items-center text-red-600 hover:text-red-700"
-            >
-              <LogOut className="w-5 h-5 mr-1" />
-              Logout
-            </button>
-          </div>
-        ) : (
-          <div className="space-x-4">
-            <button
-              onClick={() => navigate('/login')}
-              className="text-blue-600 hover:text-blue-700"
-            >
-              Login
-            </button>
-            <button
-              onClick={() => navigate('/register')}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Register
-            </button>
-          </div>
-        )}
-      </div>
-    </header>
-  );
-};
-
-// Enhanced Subject Selection with subscription info
-const SubjectSelection = ({ subjects, state, dispatch }) => {
-  const navigate = useNavigate();
-  
-  const handleSubjectClick = async (subject) => {
-    if (!state.isAuthenticated) {
-      navigate('/login');
-      return;
-    }
-
-    try {
-      dispatch({ type: 'SET_LOADING', payload: true });
-      const accessResponse = await apiService.checkSubjectAccess(state.token, subject.slug);
-      
-      if (accessResponse.success && accessResponse.has_access) {
-        // User has access, fetch full subject details with topics
-        const subjectDetails = await apiService.fetchSubject(state.token, subject.slug);
-        dispatch({ type: 'SET_SUBJECT', payload: subjectDetails });
-        navigate(`/subjects/${subject.slug}`);
-      } else {
-        // Show subscription activation form
-        dispatch({ type: 'SET_SUBJECT', payload: subject });
-        navigate(`/subjects/${subject.slug}/activate`);
-      }
-    } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: 'Failed to check access' });
-    } finally {
-      dispatch({ type: 'SET_LOADING', payload: false });
-    }
-  };
-
-  const getSubjectStatus = (subject) => {
-    const subscription = state.subscriptions.find(sub => sub.subject_name === subject.name);
-    if (subscription && !subscription.is_expired) {
-      return { hasAccess: true, daysLeft: subscription.days_remaining };
-    }
-    return { hasAccess: false };
-  };
-
-  return (
-    <div className="text-center">
-      <h2 className="text-4xl font-bold text-blue-400 mb-2">Your Tutor</h2>
-      <h1 className="text-4xl font-bold text-gray-900 mb-2">A-Level Sciences Mastery</h1>
-      <p className="text-gray-600 mb-12">Choose your subject to begin</p>
-      
-      {!state.isAuthenticated && (
-        <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-lg mb-8 max-w-2xl mx-auto">
-          <p className="font-medium">Please login or register to access quizzes</p>
-        </div>
-      )}
-      
-      <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
-        {subjects.map((subject) => {
-          const status = getSubjectStatus(subject);
-          return (
-            <div key={subject.id} className="relative">
-              <button
-                onClick={() => handleSubjectClick(subject)}
-                className={`${subject.color} text-white p-8 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 w-full`}
-              >
-                <BookOpen className="w-16 h-16 mx-auto mb-4" />
-                <h3 className="text-2xl font-bold mb-2">{subject.name}</h3>
-                <p className="text-sm opacity-90">UGX {subject.price?.toLocaleString()}/month</p>
-              </button>
-              
-              {status.hasAccess && (
-                <div className="absolute -top-2 -right-2 bg-green-500 text-white px-2 py-1 rounded-full text-xs">
-                  {status.daysLeft} days left
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
-
-// Topic Selection Component
-const TopicSelection = ({ subject, state, dispatch }) => {
-  const navigate = useNavigate();
-  
-  const handleTopicClick = async (topic) => {
-    try {
-      dispatch({ type: 'SET_LOADING', payload: true });
-      const topicDetails = await apiService.fetchTopic(state.token, subject.slug, topic.slug);
-      dispatch({ type: 'SET_TOPIC', payload: topicDetails });
-      navigate(`/subjects/${subject.slug}/topics/${topic.slug}`);
-    } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: 'Failed to load topic details' });
-    } finally {
-      dispatch({ type: 'SET_LOADING', payload: false });
-    }
-  };
-
-  return (
-    <div>
-      <h2 className="text-3xl font-bold text-gray-900 mb-8">{subject.name} Topics</h2>
-      
-      <div className="grid md:grid-cols-2 gap-6">
-        {subject.topics?.map((topic) => (
-          <button
-            key={topic.id}
-            onClick={() => handleTopicClick(topic)}
-            className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg border-l-4 border-blue-500 transition-all duration-200 text-left"
-          >
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">{topic.name}</h3>
-            <p className="text-gray-600">{topic.subtopics?.length || 0} subtopic(s)</p>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-// Subtopic Selection Component
-const SubtopicSelection = ({ topic, state, dispatch }) => {
-  const navigate = useNavigate();
-  
-  const handleSubtopicClick = async (subtopic) => {
-    try {
-      dispatch({ type: 'SET_LOADING', payload: true });
-      const response = await apiService.fetchSubtopic(
-        state.token, 
-        state.currentSubject.slug, 
-        topic.slug, 
-        subtopic.slug
-      );
-      
-      if (response.success) {
-        dispatch({ type: 'SET_SUBTOPIC', payload: response.subtopic });
-        dispatch({ 
-          type: 'START_QUIZ', 
-          payload: { 
-            quiz: response.subtopic, 
-            duration: 300 // 5 minutes per quiz
-          } 
-        });
-        navigate(`/quiz/${subtopic.id}`);
-      } else {
-        dispatch({ type: 'SET_ERROR', payload: response.message });
-      }
-    } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: 'Failed to load quiz content' });
-    } finally {
-      dispatch({ type: 'SET_LOADING', payload: false });
-    }
-  };
-
-  return (
-    <div>
-      <h2 className="text-3xl font-bold text-gray-900 mb-8">{topic.name} - Subtopics</h2>
-      
-      <div className="grid md:grid-cols-2 gap-6">
-        {topic.subtopics?.map((subtopic) => (
-          <div key={subtopic.id} className="bg-white p-6 rounded-lg shadow-md border-l-4 border-green-500">
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">{subtopic.name}</h3>
-            <p className="text-gray-600 mb-4">{subtopic.question_count || 0} questions</p>
-            <button
-              onClick={() => handleSubtopicClick(subtopic)}
-              className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
-            >
-              Start Quiz
-            </button>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
 // Timer Component
 const Timer = ({ timeRemaining, isRunning, onToggle }) => {
-  const formatTime = (seconds) => {
+  const formatTimerTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const getTimerColor = () => {
-    if (timeRemaining <= 60) return 'text-red-500';
-    if (timeRemaining <= 180) return 'text-yellow-500';
-    return 'text-green-500';
-  };
-
   return (
-    <div className="flex items-center space-x-2 bg-gray-100 rounded-lg px-4 py-2">
-      <Clock className="w-5 h-5 text-gray-600" />
-      <span className={`font-mono text-lg font-bold ${getTimerColor()}`}>
-        {formatTime(timeRemaining)}
+    <div className="flex items-center space-x-2">
+      <Clock className="w-5 h-5 text-blue-600" />
+      <span className={`font-mono text-lg ${timeRemaining < 300 ? 'text-red-600' : 'text-blue-600'}`}>
+        {formatTimerTime(timeRemaining)}
       </span>
       <button
         onClick={onToggle}
-        className="ml-2 p-1 rounded-full hover:bg-gray-200 transition-colors"
+        className="text-sm text-gray-500 hover:text-gray-700"
       >
-        {isRunning ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+        {isRunning ? 'Pause' : 'Resume'}
       </button>
     </div>
   );
 };
 
-// Quiz Component
-const Quiz = ({ state, dispatch }) => {
-  const navigate = useNavigate();
-  
+// Loading Spinner Component
+const LoadingSpinner = () => (
+  <div className="flex items-center justify-center h-64">
+    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+  </div>
+);
+
+
+// Auth Provider
+const AuthProvider = ({ children }) => {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const savedUser = localStorage.getItem('user');
+    
+    if (token && savedUser) {
+      setUser(JSON.parse(savedUser));
+      // Verify token is still valid by fetching profile
+      apiService.getProfile()
+        .then(response => {
+          if (response.success) {
+            const updatedUser = { ...JSON.parse(savedUser), ...response.profile };
+            setUser(updatedUser);
+            localStorage.setItem('user', JSON.stringify(updatedUser));
+          }
+        })
+        .catch(() => {
+          // Token invalid, clear storage
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          setUser(null);
+        });
+    }
+    setLoading(false);
+  }, []);
+
+  const login = async (username, password) => {
+    try {
+      const response = await apiService.login(username, password);
+      if (response.success) {
+        localStorage.setItem('token', response.token);
+        
+        // Fetch full profile
+        const profileResponse = await apiService.getProfile();
+        const userData = {
+          id: response.user_id,
+          username: response.username,
+          ...profileResponse.profile
+        };
+        
+        localStorage.setItem('user', JSON.stringify(userData));
+        setUser(userData);
+        return { success: true };
+      }
+      return { success: false, message: response.message };
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
+  };
+
+  const logout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setUser(null);
+  };
+
+  const value = {
+    user,
+    login,
+    logout,
+    loading
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
+
+// Custom hook
+const useAuth = () => {
+  const context = React.useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within AuthProvider');
+  }
+  return context;
+};
+
+// Login Component
+const LoginForm = () => {
+  const [formData, setFormData] = useState({ username: '', password: '' });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const { login } = useAuth();
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    const result = await login(formData.username, formData.password);
+    
+    if (!result.success) {
+      setError(result.message);
+    }
+    
+    setLoading(false);
+  };
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
+        <div className="text-center mb-8">
+          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+            <BookOpen className="w-8 h-8 text-white" />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900">YourTutor</h1>
+          <p className="text-gray-600 mt-2">Sign in to continue learning</p>
+        </div>
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Username
+            </label>
+            <input
+              type="text"
+              name="username"
+              value={formData.username}
+              onChange={handleChange}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Password
+            </label>
+            <input
+              type="password"
+              name="password"
+              value={formData.password}
+              onChange={handleChange}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              required
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 disabled:opacity-50"
+          >
+            {loading ? 'Signing in...' : 'Sign In'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+
+
+// Enhanced Quiz Component
+const Quiz = ({ state, dispatch, navigate }) => {
+
+  const handleFinish = async () => {
+    try {
+      dispatch({ type: 'SET_LOADING', payload: true });
+      
+      const timeTaken = Math.floor((Date.now() - state.quizStartTime) / 1000);
+      
+      const result = await apiService.submitQuiz(
+        state.token,
+        state.currentSubtopic.id,
+        state.answers,
+        timeTaken
+      );
+      
+      if (result.success) {
+        dispatch({ 
+          type: 'FINISH_QUIZ', 
+          payload: { 
+            score: result.score,
+            total_questions: result.total_questions,
+            time_taken: timeTaken,
+            quizAttemptId: result.quiz_attempt_id
+          } 
+        });
+
+        const detailedResults = await apiService.getQuizResults(state.token, result.quiz_attempt_id);
+        if (detailedResults.success) {
+          dispatch({ type: 'SET_QUIZ_RESULTS', payload: detailedResults });
+        }
+        
+        navigate(`/results/${result.quiz_attempt_id}`);
+      } else {
+        dispatch({ type: 'SET_ERROR', payload: result.error || 'Failed to submit quiz' });
+      }
+    } catch (error) {
+      dispatch({ type: 'SET_ERROR', payload: error.message });
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  };  
+
+  useEffect(() => {
+    let interval;
+    if (state.isTimerRunning && state.timeRemaining > 0) {
+      interval = setInterval(() => {
+        dispatch({ type: 'UPDATE_TIMER' });
+      }, 1000);
+    } else if (state.timeRemaining === 0 && state.isTimerRunning) {
+      handleFinish();
+    }
+    return () => clearInterval(interval);
+  }, [state.isTimerRunning, state.timeRemaining, state.quizStartTime, state.token, state.currentSubtopic, state.answers, navigate, dispatch]);
+
   if (!state.currentQuiz?.questions || state.currentQuiz.questions.length === 0) {
     return (
       <div className="text-center">
@@ -870,47 +491,9 @@ const Quiz = ({ state, dispatch }) => {
     dispatch({ type: 'PREVIOUS_QUESTION' });
   };
 
-  const handleFinish = async () => {
-    try {
-      dispatch({ type: 'SET_LOADING', payload: true });
-      
-      const timeTaken = Math.floor((Date.now() - state.quizStartTime) / 1000);
-      
-      const result = await apiService.submitQuiz(
-        state.token,
-        state.currentSubtopic.id,
-        state.answers,
-        timeTaken
-      );
-      
-      if (result.success) {
-        dispatch({ 
-          type: 'FINISH_QUIZ', 
-          payload: { 
-            score: result.score,
-            quizAttemptId: result.quiz_attempt_id
-          } 
-        });
-
-        // Fetch detailed results
-        const detailedResults = await apiService.getQuizResults(state.token, result.quiz_attempt_id);
-        if (detailedResults.success) {
-          dispatch({ type: 'SET_QUIZ_RESULTS', payload: detailedResults });
-        }
-        
-        navigate(`/results/${result.quiz_attempt_id}`);
-      } else {
-        dispatch({ type: 'SET_ERROR', payload: result.error || 'Failed to submit quiz' });
-      }
-    } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: error.message });
-    } finally {
-      dispatch({ type: 'SET_LOADING', payload: false });
-    }
-  };
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="max-w-3xl mx-auto mt-10">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-900">
           Question {state.currentQuestionIndex + 1} of {totalQuestions}
@@ -992,10 +575,8 @@ const Quiz = ({ state, dispatch }) => {
   );
 };
 
-// Results Component
-const Results = ({ state, dispatch }) => {
-  const navigate = useNavigate();
-  
+// Enhanced Results Component
+const Results = ({ state, dispatch, navigate }) => {
   if (!state.quizResults) {
     return <LoadingSpinner />;
   }
@@ -1013,7 +594,7 @@ const Results = ({ state, dispatch }) => {
 
   const gradeInfo = getGrade();
 
-  const formatTime = (seconds) => {
+  const formatTimerTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}m ${secs}s`;
@@ -1050,7 +631,7 @@ const Results = ({ state, dispatch }) => {
           <div>
             <div className="flex items-center justify-center mb-2">
               <Clock className="w-8 h-8 text-blue-500 mr-2" />
-              <span className="text-2xl font-bold text-blue-600">{formatTime(time_taken)}</span>
+              <span className="text-2xl font-bold text-blue-600">{formatTimerTime(time_taken)}</span>
             </div>
             <p className="text-gray-600">Time Taken</p>
           </div>
@@ -1121,242 +702,1249 @@ const Results = ({ state, dispatch }) => {
   );
 };
 
-// Protected Route Component
-const ProtectedRoute = ({ children, isAuthenticated }) => {
-  const navigate = useNavigate();
+// Subscription Activation Component
+const SubscriptionActivation = ({ subject, onBack }) => {
+  const { user } = useAuth();
   
-  useEffect(() => {
-    if (!isAuthenticated) {
-      navigate('/login');
-    }
-  }, [isAuthenticated, navigate]);
-
-  return isAuthenticated ? children : <LoadingSpinner />;
-};
-
-// Main App Component
-const AppContent = () => {
-  const [state, dispatch] = useReducer(quizReducer, initialState);
-
-  // Initialize authentication from localStorage
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      // Fetch user profile to get the actual username
-      const loadUserProfile = async () => {
-        try {
-          const profileResponse = await apiService.getProfile(token);
-          if (profileResponse.success || profileResponse.username) {
-            dispatch({ 
-              type: 'LOGIN_SUCCESS', 
-              payload: { 
-                token: token,
-                user: { 
-                  id: profileResponse.id || profileResponse.user_id,
-                  username: profileResponse.username || profileResponse.user?.username
-                }
-              }
-            });
-          } else {
-            // If profile fetch fails, remove invalid token
-            localStorage.removeItem('token');
-          }
-        } catch (error) {
-          // If profile fetch fails, remove invalid token
-          localStorage.removeItem('token');
-          console.error('Failed to load user profile:', error);
-        }
-      };
-      
-      loadUserProfile();
-    }
-  }, []);
-
-  // Load initial data
-  useEffect(() => {
-    const loadInitialData = async () => {
-      try {
-        dispatch({ type: 'SET_LOADING', payload: true });
-        
-        const subjects = await apiService.fetchSubjects(state.token);
-        dispatch({ type: 'SET_SUBJECTS', payload: subjects });
-        
-        if (state.isAuthenticated && state.token) {
-          try {
-            const subscriptionsResponse = await apiService.getUserSubscriptions(state.token);
-            if (subscriptionsResponse.success) {
-              dispatch({ type: 'SET_SUBSCRIPTIONS', payload: subscriptionsResponse.subscriptions });
-            }
-          } catch (error) {
-            console.error('Failed to load subscriptions:', error);
-          }
-        }
-      } catch (error) {
-        dispatch({ type: 'SET_ERROR', payload: error.message });
-      } finally {
-        dispatch({ type: 'SET_LOADING', payload: false });
-      }
-    };
-
-    loadInitialData();
-  }, [state.isAuthenticated, state.token]);
-
-  // Timer effect
-  const handleAutoSubmit = useCallback(async () => {
-    try {
-      const timeTaken = Math.floor((Date.now() - state.quizStartTime) / 1000);
-      
-      const result = await apiService.submitQuiz(
-        state.token,
-        state.currentSubtopic.id,
-        state.answers,
-        timeTaken
-      );
-      
-      if (result.success) {
-        dispatch({ 
-          type: 'FINISH_QUIZ', 
-          payload: { 
-            score: result.score,
-            quizAttemptId: result.quiz_attempt_id
-          } 
-        });
-
-        const detailedResults = await apiService.getQuizResults(state.token, result.quiz_attempt_id);
-        if (detailedResults.success) {
-          dispatch({ type: 'SET_QUIZ_RESULTS', payload: detailedResults });
-        }
-      }
-    } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: error.message });
-    }
-  }, [state.token, state.currentSubtopic?.id, state.answers, state.quizStartTime]);
-
-  useEffect(() => {
-    let timer;
-    if (state.isTimerRunning && state.timeRemaining > 0) {
-      timer = setInterval(() => {
-        dispatch({ type: 'TICK_TIMER' });
-      }, 1000);
-    } else if (state.timeRemaining === 0 && state.isQuizActive) {
-      handleAutoSubmit();
-    }
-    return () => clearInterval(timer);
-  }, [state.isTimerRunning, state.timeRemaining, state.isQuizActive, handleAutoSubmit]);
-
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      <Header state={state} dispatch={dispatch} />
-      
-      <div className="container mx-auto px-4 py-8 flex-1">
-        {state.error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 max-w-2xl mx-auto">
-            {state.error}
-          </div>
-        )}
-        
-        <Routes>
-          <Route 
-            path="/" 
-            element={
-              <SubjectSelection 
-                subjects={state.subjects} 
-                state={state} 
-                dispatch={dispatch} 
-              />
-            } 
-          />
-          <Route 
-            path="/login" 
-            element={
-              state.isAuthenticated ? 
-              <Navigate to="/" replace /> : 
-              <LoginForm state={state} dispatch={dispatch} />
-            } 
-          />
-          <Route 
-            path="/register" 
-            element={
-              state.isAuthenticated ? 
-              <Navigate to="/" replace /> : 
-              <RegisterForm state={state} dispatch={dispatch} />
-            } 
-          />
-          <Route 
-            path="/subjects/:subjectSlug" 
-            element={
-              <ProtectedRoute isAuthenticated={state.isAuthenticated}>
-                {state.currentSubject && (
-                  <TopicSelection 
-                    subject={state.currentSubject} 
-                    state={state} 
-                    dispatch={dispatch} 
-                  />
-                )}
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/subjects/:subjectSlug/activate" 
-            element={
-              <ProtectedRoute isAuthenticated={state.isAuthenticated}>
-                <SubscriptionActivation 
-                  subject={state.currentSubject} 
-                  state={state} 
-                  dispatch={dispatch} 
-                />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/subjects/:subjectSlug/topics/:topicSlug" 
-            element={
-              <ProtectedRoute isAuthenticated={state.isAuthenticated}>
-                {state.currentTopic && (
-                  <SubtopicSelection 
-                    topic={state.currentTopic} 
-                    state={state} 
-                    dispatch={dispatch} 
-                  />
-                )}
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/quiz/:subtopicId" 
-            element={
-              <ProtectedRoute isAuthenticated={state.isAuthenticated}>
-                <Quiz state={state} dispatch={dispatch} />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/results/:attemptId" 
-            element={
-              <ProtectedRoute isAuthenticated={state.isAuthenticated}>
-                <Results state={state} dispatch={dispatch} />
-              </ProtectedRoute>
-            } 
-          />
-          {/* Catch all route - redirect to home */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+    <div className="max-w-lg mx-auto bg-white p-8 rounded-lg shadow-lg text-center">
+      <div className="mb-6">
+        <Phone className="w-16 h-16 text-blue-500 mx-auto mb-4" />
+        <h2 className="text-2xl font-bold text-gray-900 mb-4">Activate Your Subscription</h2>
       </div>
       
-      <footer className="bg-gray-200 text-center py-4 text-gray-700 text-sm">
-        &copy; {new Date().getFullYear()} YourTutor. All rights reserved.<br />
-        Contact: +256705251258 / +256780513947 | Email: timmehta71@gmail.com
-      </footer>
+      <div className="bg-blue-50 p-6 rounded-lg mb-6">
+        <h3 className="text-xl font-semibold text-gray-900 mb-2">{subject?.name}</h3>
+        <p className="text-2xl font-bold text-blue-600 mb-2">UGX {subject?.price?.toLocaleString()}</p>
+        <p className="text-sm text-gray-600">30 days access to all quizzes</p>
+      </div>
+      
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-6">
+        <h4 className="font-bold text-yellow-800 mb-3">To activate your subscription:</h4>
+        <div className="text-left text-yellow-700 space-y-2">
+          <p className="flex items-center">
+            <Phone className="w-4 h-4 mr-2" />
+            <span className="font-semibold">Call or WhatsApp:</span>
+          </p>
+          <p className="ml-6 font-bold text-lg">0705 251 258</p>
+          <p className="ml-6 font-bold text-lg">0780 513 947</p>
+        </div>
+      </div>
+      
+      <div className="bg-gray-50 p-4 rounded-lg mb-6 text-left">
+        <h5 className="font-semibold text-gray-900 mb-2">What to mention when calling:</h5>
+        <ul className="text-sm text-gray-700 space-y-1 list-disc list-inside">
+          <li>Your username: <span className="font-medium">{user?.username}</span></li>
+          <li>Subject you want to subscribe to: <span className="font-medium">{subject?.name}</span></li>
+          <li>Preferred payment method (MTN/Airtel Mobile Money)</li>
+        </ul>
+      </div>
+      
+      <p className="text-sm text-gray-600 mb-6">
+        The admin will help you complete the payment process and activate your subscription immediately.
+      </p>
+      
+      <div className="space-y-4">
+        <button
+          onClick={onBack}
+          className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition-colors"
+        >
+          Back to Subjects
+        </button>
+        
+        <button
+          onClick={() => window.location.reload()}
+          className="w-full bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600 transition-colors text-sm"
+        >
+          I've Already Paid - Refresh Page
+        </button>
+      </div>
     </div>
   );
 };
 
-const App = () => {
+// Subjects Component
+// Enhanced Subjects Component with Quiz Integration
+const Subjects = () => {
+  const [subjects, setSubjects] = useState([]);
+  const [subscriptions, setSubscriptions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedSubject, setSelectedSubject] = useState(null);
+  const [selectedTopic, setSelectedTopic] = useState(null);
+  const [quizState, dispatch] = useReducer(quizReducer, initialQuizState);
+  const [currentView, setCurrentView] = useState('subjects');
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(null);
+
+  useEffect(() => {
+    loadSubjects();
+    const token = localStorage.getItem('token');
+    if (token) {
+      dispatch({ type: 'SET_TOKEN', payload: token });
+    }
+  }, []);
+
+  const loadSubjects = async () => {
+    try {
+      const [subjectsResponse, subscriptionsResponse] = await Promise.all([
+        apiService.getSubjects(),
+        apiService.getSubscriptions()
+      ]);
+
+      if (subjectsResponse) {
+        setSubjects(subjectsResponse);
+      }
+
+      if (subscriptionsResponse.success) {
+        setSubscriptions(subscriptionsResponse.subscriptions);
+      }
+    } catch (error) {
+      console.error('Error loading subjects:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const isSubscribed = (subjectId) => {
+    return subscriptions.some(sub => 
+      sub.subject_name && subjects.find(s => s.id === subjectId && s.name === sub.subject_name)
+    );
+  };
+
+  const handleSubjectClick = async (subject) => {
+    if (!isSubscribed(subject.id)) {
+      setShowSubscriptionModal(subject);
+      return;
+    }
+    
+    try {
+      const response = await apiService.getSubject(subject.slug);
+      setSelectedSubject({ ...subject, ...response });
+    } catch (error) {
+      console.error('Error loading subject details:', error);
+    }
+  };
+
+  const handleTopicClick = (topic) => {
+    setSelectedTopic(topic);
+  };
+
+
+  const handleSubtopicClick = async (subtopic) => {
+    try {
+      const response = await apiService.getSubtopic(
+        selectedSubject.slug,
+        selectedTopic.slug,
+        subtopic.slug
+      );
+      
+      if (response.success) {
+        dispatch({
+          type: 'START_QUIZ',
+          payload: {
+            quiz: { questions: response.subtopic.questions },
+            subtopic: { id: response.subtopic.id, name: response.subtopic.name },
+            timeLimit: 300
+          }
+        });
+        setCurrentView('quiz');
+      }
+    } catch (error) {
+      console.error('Error loading subtopic:', error);
+    }
+  };
+
+  const navigate = (path) => {
+    if (path === -1 || path === '/') {
+      if (currentView === 'quiz') {
+        setCurrentView('subtopics');
+      } else if (currentView === 'results') {
+        setCurrentView('subjects');
+        dispatch({ type: 'RESET_QUIZ' });
+      } else if (currentView === 'subtopics') {
+        setCurrentView('topics');
+      } else if (currentView === 'topics') {
+        setCurrentView('subjects');
+      }
+    } else if (path.startsWith('/results/')) {
+      setCurrentView('results');
+    }
+  };
+
+  // Quiz View
+  if (currentView === 'quiz') {
+    return <Quiz state={quizState} dispatch={dispatch} navigate={navigate} />;
+  }
+
+  // Results View
+  if (currentView === 'results') {
+    return <Results state={quizState} dispatch={dispatch} navigate={navigate} />;
+  }  
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  // Show subscription activation modal
+  if (showSubscriptionModal) {
+    return (
+      <SubscriptionActivation 
+        subject={showSubscriptionModal} 
+        onBack={() => setShowSubscriptionModal(null)} 
+      />
+    );
+  }
+
+  // Subtopics View
+  // Subtopics View
+  if (selectedTopic) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center space-x-4">
+          <button 
+            onClick={() => setSelectedTopic(null)}
+            className="text-blue-600 hover:text-blue-700"
+          >
+            ← Back to Topics
+          </button>
+        </div>
+
+        <div>
+          <h2 className="text-3xl font-bold text-gray-900 mb-8">{selectedTopic.name} - Subtopics</h2>
+          
+          <div className="grid md:grid-cols-2 gap-6">
+            {selectedTopic.subtopics?.map((subtopic) => (
+              <div key={subtopic.id} className="bg-white p-6 rounded-lg shadow-md border-l-4 border-green-500">
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">{subtopic.name}</h3>
+                <p className="text-gray-600 mb-4">{subtopic.question_count || 0} questions</p>
+                <button
+                  onClick={() => handleSubtopicClick(subtopic)}
+                  className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
+                >
+                  Start Quiz
+                </button>
+              </div>
+            )) || (
+              <p className="col-span-full text-center text-gray-500 py-8">
+                No subtopics available for this topic
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Topics View
+  // Topics View
+  if (selectedSubject) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center space-x-4">
+          <button 
+            onClick={() => {
+              setSelectedSubject(null);
+              setSelectedTopic(null);
+            }}
+            className="text-blue-600 hover:text-blue-700"
+          >
+            ← Back to Subjects
+          </button>
+        </div>
+
+        <div>
+          <h2 className="text-3xl font-bold text-gray-900 mb-8">{selectedSubject.name} Topics</h2>
+          
+          <div className="grid md:grid-cols-2 gap-6">
+            {selectedSubject.topics?.map((topic) => (
+              <button
+                key={topic.id}
+                onClick={() => handleTopicClick(topic)}
+                className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg border-l-4 border-blue-500 transition-all duration-200 text-left"
+              >
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">{topic.name}</h3>
+                <p className="text-gray-600">{topic.subtopics?.length || 0} subtopic(s)</p>
+              </button>
+            )) || (
+              <p className="col-span-full text-center text-gray-500 py-8">
+                No topics available for this subject
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+  // Subjects View
   return (
-    <Router>
-      <AppContent />
-    </Router>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">Available Subjects</h1>
+        <p className="text-gray-600">Choose a subject to start practicing quizzes</p>
+      </div>
+
+      {/* Admin Contact Info */}
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
+        <h2 className="text-lg font-semibold text-blue-900 mb-2">Need a Subscription?</h2>
+        <p className="text-blue-800 mb-4">
+          To access quiz content, you need an active subscription. Contact the admin to activate your subscription:
+        </p>
+        <div className="space-y-2 text-blue-800">
+          <p><strong>Call or WhatsApp:</strong> +256705251258</p>
+          <p><strong>Email:</strong> timmehta71@gmail.com</p>
+          
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {subjects.map((subject) => {
+          const subscribed = isSubscribed(subject.id);
+          return (
+            <div key={subject.id} className="bg-white rounded-xl shadow-sm border overflow-hidden hover:shadow-md transition-shadow">
+              <div className={`h-4 ${subject.color || 'bg-blue-500'}`}></div>
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900">{subject.name}</h3>
+                  {subscribed && (
+                    <div className="text-right">
+                      <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full block mb-1">
+                        Subscribed
+                      </span>
+                      <span className="text-xs text-gray-600">
+                        {(() => {
+                          const subscription = subscriptions.find(sub => 
+                            sub.subject_name === subject.name
+                          );
+                          return subscription ? `${subscription.days_remaining} days left` : '';
+                        })()}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-3 mb-6">
+                  <p className="text-2xl font-bold text-blue-600">
+                    UGX {subject.price?.toLocaleString('en-UG') || 'N/A'}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    {subject.topics?.length || 0} topics available
+                  </p>
+                </div>
+
+                {subscribed ? (
+                  <button
+                    onClick={() => handleSubjectClick(subject)}
+                    className="w-full bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 py-2 px-4 rounded-lg font-medium transition-colors"
+                  >
+                    Access Quizzes
+                    <ArrowRight className="w-4 h-4 ml-2 inline" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleSubjectClick(subject)}
+                    className="w-full bg-green-500 text-white py-2 px-4 rounded-lg font-medium hover:bg-green-600 transition-colors"
+                  >
+                    Subscribe Now
+                    <ArrowRight className="w-4 h-4 ml-2 inline" />
+                  </button>                
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 };
 
-export default App;
+// Dashboard Component
+const Dashboard = () => {
+  const { user } = useAuth();
+  const [stats, setStats] = useState({
+    totalAttempts: 0,
+    averageScore: 0,
+    totalTime: 0,
+    bestScore: 0,
+    recentAttempts: [],
+    subjectProgress: []
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
+
+  const loadDashboardData = async () => {
+    try {
+      const attemptsResponse = await apiService.getQuizAttempts();
+
+      if (attemptsResponse && attemptsResponse.success) {
+        const attempts = attemptsResponse.attempts;
+        const totalAttempts = attempts.length;
+        const averageScore = totalAttempts > 0 
+          ? attempts.reduce((sum, attempt) => sum + (attempt.score / attempt.total_questions * 100), 0) / totalAttempts
+          : 0;
+        const totalTime = attempts.reduce((sum, attempt) => sum + attempt.time_taken, 0);
+        const bestScore = Math.max(...attempts.map(attempt => attempt.score / attempt.total_questions * 100), 0);
+        
+        // Subject progress calculation - fix the name extraction
+        const subjectProgress = {};
+        attempts.forEach(attempt => {
+          // Extract subject name from subtopic_name (format: "Subject - Topic - Subtopic")
+          const parts = attempt.subtopic_name.split(' - ');
+          const subjectName = parts[0] || attempt.subtopic_name;
+          
+          if (!subjectProgress[subjectName]) {
+            subjectProgress[subjectName] = { attempts: 0, totalScore: 0, bestScore: 0 };
+          }
+          const score = attempt.score / attempt.total_questions * 100;
+          subjectProgress[subjectName].attempts++;
+          subjectProgress[subjectName].totalScore += score;
+          subjectProgress[subjectName].bestScore = Math.max(subjectProgress[subjectName].bestScore, score);
+        });
+
+        setStats({
+          totalAttempts,
+          averageScore: Math.round(averageScore),
+          totalTime,
+          bestScore: Math.round(bestScore),
+          recentAttempts: attempts.slice(0, 5),
+          subjectProgress: Object.entries(subjectProgress).map(([name, data]) => ({
+            name,
+            averageScore: Math.round(data.totalScore / data.attempts),
+            bestScore: Math.round(data.bestScore),
+            attempts: data.attempts
+          }))
+        });
+      }
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl p-6 text-white">
+        <h1 className="text-2xl font-bold">Welcome back, {user?.first_name || user?.username}!</h1>
+        <p className="opacity-90 mt-2">Ready to continue your learning journey?</p>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="bg-white rounded-xl p-6 shadow-sm border">
+          <div className="flex items-center">
+            <div className="bg-blue-100 p-3 rounded-lg">
+              <Trophy className="w-6 h-6 text-blue-600" />
+            </div>
+            <div className="ml-4">
+              <h3 className="text-sm font-medium text-gray-500">Quiz Attempts</h3>
+              <p className="text-2xl font-bold text-gray-900">{stats.totalAttempts}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl p-6 shadow-sm border">
+          <div className="flex items-center">
+            <div className="bg-green-100 p-3 rounded-lg">
+              <Target className="w-6 h-6 text-green-600" />
+            </div>
+            <div className="ml-4">
+              <h3 className="text-sm font-medium text-gray-500">Average Score</h3>
+              <p className="text-2xl font-bold text-gray-900">{stats.averageScore}%</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl p-6 shadow-sm border">
+          <div className="flex items-center">
+            <div className="bg-yellow-100 p-3 rounded-lg">
+              <Award className="w-6 h-6 text-yellow-600" />
+            </div>
+            <div className="ml-4">
+              <h3 className="text-sm font-medium text-gray-500">Best Score</h3>
+              <p className="text-2xl font-bold text-gray-900">{stats.bestScore}%</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl p-6 shadow-sm border">
+          <div className="flex items-center">
+            <div className="bg-purple-100 p-3 rounded-lg">
+              <Clock className="w-6 h-6 text-purple-600" />
+            </div>
+            <div className="ml-4">
+              <h3 className="text-sm font-medium text-gray-500">Total Time</h3>
+              <p className="text-2xl font-bold text-gray-900">{formatTime(stats.totalTime)}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Recent Quiz Attempts */}
+        <div className="bg-white rounded-xl p-6 shadow-sm border">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <TrendingUp className="w-5 h-5 mr-2 text-blue-600" />
+            Recent Quiz Attempts
+          </h2>
+          {stats.recentAttempts.length > 0 ? (
+            <div className="space-y-3">
+              {stats.recentAttempts.map((attempt, index) => (
+                <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div>
+                    <h3 className="font-medium text-gray-900">{attempt.subtopic_name}</h3>
+                    <p className="text-sm text-gray-500">{formatDate(attempt.started_at)}</p>
+                  </div>
+                  <div className="text-right">
+                    <div className="flex items-center">
+                      <span className={`text-lg font-bold ${
+                        (attempt.score / attempt.total_questions * 100) >= 70 
+                          ? 'text-green-600' 
+                          : 'text-red-600'
+                      }`}>
+                        {Math.round(attempt.score / attempt.total_questions * 100)}%
+                      </span>
+                      {(attempt.score / attempt.total_questions * 100) >= 70 
+                        ? <CheckCircle className="w-5 h-5 text-green-600 ml-2" />
+                        : <XCircle className="w-5 h-5 text-red-600 ml-2" />
+                      }
+                    </div>
+                    <p className="text-sm text-gray-500">{attempt.score}/{attempt.total_questions}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-500 text-center py-8">No quiz attempts yet. Start your first quiz!</p>
+          )}
+        </div>
+
+        {/* Subject Progress */}
+        <div className="bg-white rounded-xl p-6 shadow-sm border">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <BarChart3 className="w-5 h-5 mr-2 text-blue-600" />
+            Subject Progress
+          </h2>
+          {stats.subjectProgress.length > 0 ? (
+            <div className="space-y-4">
+              {stats.subjectProgress.map((subject, index) => (
+                <div key={index} className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-medium text-gray-900">{subject.name}</h3>
+                    <span className="text-sm text-gray-500">{subject.attempts} attempts</span>
+                  </div>
+                  <div className="flex items-center space-x-4">
+                    <div className="flex-1">
+                      <div className="bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="bg-gradient-to-r from-blue-600 to-indigo-600 h-2 rounded-full"
+                          style={{ width: `${subject.averageScore}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                    <span className="text-sm font-medium text-gray-900">
+                      Avg: {subject.averageScore}%
+                    </span>
+                    <span className="text-sm text-green-600">
+                      Best: {subject.bestScore}%
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-500 text-center py-8">No subject progress data available.</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Progress Component
+const Progress = () => {
+  const [attempts, setAttempts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedAttempt, setSelectedAttempt] = useState(null);
+  const [results, setResults] = useState(null);
+
+  useEffect(() => {
+    loadAttempts();
+  }, []);
+
+  const loadAttempts = async () => {
+    try {
+      const response = await apiService.getQuizAttempts();
+      if (response && response.success) {
+        setAttempts(response.attempts);
+      }
+    } catch (error) {
+      console.error('Error loading attempts:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadResults = async (attemptId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await apiService.getQuizResults(token, attemptId);
+      if (response && response.success) {
+        setResults(response);
+        setSelectedAttempt(attemptId);
+      }
+    } catch (error) {
+      console.error('Error loading results:', error);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (selectedAttempt && results) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center space-x-4">
+          <button 
+            onClick={() => {
+              setSelectedAttempt(null);
+              setResults(null);
+            }}
+            className="text-blue-600 hover:text-blue-700"
+          >
+            ←  Back to Progress
+          </button>
+          <h1 className="text-2xl font-bold text-gray-900">Quiz Results</h1>
+        </div>
+
+        <div className="bg-white rounded-xl p-6 shadow-sm border">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+            <div className="text-center">
+              <div className={`text-3xl font-bold ${results.score/results.total_questions >= 0.7 ? 'text-green-600' : 'text-red-600'}`}>
+                {Math.round((results.score/results.total_questions) * 100)}%
+              </div>
+              <p className="text-gray-600">Overall Score</p>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl font-bold text-blue-600">
+                {results.score}/{results.total_questions}
+              </div>
+              <p className="text-gray-600">Correct Answers</p>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl font-bold text-purple-600">
+                {formatTime(results.time_taken)}
+              </div>
+              <p className="text-gray-600">Time Taken</p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {results.results.map((result, index) => (
+              <div key={index} className={`p-4 rounded-lg border-l-4 ${
+                result.is_correct ? 'border-green-500 bg-green-50' : 'border-red-500 bg-red-50'
+              }`}>
+                <div className="flex items-start space-x-3">
+                  <div className={`mt-1 ${result.is_correct ? 'text-green-600' : 'text-red-600'}`}>
+                    {result.is_correct ? <CheckCircle className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-medium text-gray-900 mb-2">
+                      Question {index + 1}: {result.question}
+                    </h3>
+                    <div className="space-y-1">
+                      {result.options.map((option, optIndex) => (
+                        <div key={optIndex} className={`p-2 rounded ${
+                          optIndex === result.correct_answer ? 'bg-green-100 text-green-800' :
+                          optIndex === result.user_answer && !result.is_correct ? 'bg-red-100 text-red-800' :
+                          'bg-gray-100 text-gray-700'
+                        }`}>
+                          {String.fromCharCode(65 + optIndex)}. {option}
+                            {optIndex === result.correct_answer && <span className="ml-2">✓</span>}
+                            {optIndex === result.user_answer && optIndex !== result.correct_answer && <span className="ml-2">✗</span>}
+                        </div>
+                      ))}
+                    </div>
+                    {result.explanation && (
+                      <div className="mt-3 p-3 bg-blue-50 rounded">
+                        <p className="text-sm text-blue-800">
+                          <strong>Explanation:</strong> {result.explanation}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">Your Progress</h1>
+        <p className="text-gray-600">Track your quiz performance over time</p>
+      </div>
+
+      {attempts.length === 0 ? (
+        <div className="bg-white rounded-xl p-12 shadow-sm border text-center">
+          <Trophy className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No Quiz Attempts Yet</h3>
+          <p className="text-gray-600 mb-6">Start taking quizzes to track your progress</p>
+          <button className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700">
+            Browse Subjects
+          </button>
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Quiz
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Score
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Time
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Date
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Action
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {attempts.map((attempt, index) => {
+                  const percentage = Math.round((attempt.score / attempt.total_questions) * 100);
+                  return (
+                    <tr key={index} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">
+                            {attempt.subtopic_name}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className={`text-sm font-bold ${
+                            percentage >= 70 ? 'text-green-600' : 'text-red-600'
+                          }`}>
+                            {percentage}%
+                          </div>
+                          <div className="ml-2 text-xs text-gray-500">
+                            ({attempt.score}/{attempt.total_questions})
+                          </div>
+                          {percentage >= 70 ? (
+                            <CheckCircle className="w-4 h-4 text-green-500 ml-2" />
+                          ) : (
+                            <XCircle className="w-4 h-4 text-red-500 ml-2" />
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {formatTime(attempt.time_taken)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {formatDate(attempt.started_at)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <button
+                          onClick={() => loadResults(attempt.id)}
+                          className="text-blue-600 hover:text-blue-900"
+                        >
+                          View Details
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Sidebar Component
+// 2. Replace your existing Sidebar component with this updated version
+const Sidebar = ({ activeView, setActiveView, isOpen, setIsOpen }) => {
+  const { user, logout } = useAuth();
+  
+  const menuItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: Home },
+    { id: 'subjects', label: 'Subjects', icon: BookOpen },
+    { id: 'progress', label: 'Progress', icon: BarChart3 },
+    { id: 'payments', label: 'Payments', icon: CreditCard },
+    { id: 'profile', label: 'Profile', icon: Settings },
+  ];
+
+  const handleItemClick = (itemId) => {
+    setActiveView(itemId);
+    // Close sidebar on mobile when item is selected
+    if (window.innerWidth < 768) {
+      setIsOpen(false);
+    }
+  };
+
+  return (
+    <>
+      {/* Backdrop for mobile */}
+      {isOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"
+          onClick={() => setIsOpen(false)}
+        />
+      )}
+      
+      {/* Sidebar */}
+      <div className={`
+        bg-white h-full shadow-sm border-r flex flex-col transition-transform duration-300 ease-in-out z-50
+        ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+        md:translate-x-0 md:relative md:z-auto
+        fixed inset-y-0 left-0 w-64
+      `}>
+        {/* Logo and User Info */}
+        <div className="p-6 border-b">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center space-x-3">
+              <div className="bg-gradient-to-r from-blue-600 to-indigo-600 w-10 h-10 rounded-full flex items-center justify-center">
+                <BookOpen className="w-6 h-6 text-white" />
+              </div>
+              <h1 className="text-xl font-bold text-gray-900">YourTutor</h1>
+            </div>
+            {/* Close button for mobile */}
+            <button 
+              onClick={() => setIsOpen(false)}
+              className="md:hidden p-1 rounded-lg hover:bg-gray-100"
+            >
+              <X className="w-6 h-6 text-gray-600" />
+            </button>
+          </div>
+          <div className="flex items-center space-x-3">
+            <div className="bg-blue-100 w-10 h-10 rounded-full flex items-center justify-center">
+              <User className="w-6 h-6 text-blue-600" />
+            </div>
+            <div>
+              <p className="font-medium text-gray-900">
+                {user?.first_name || user?.username}
+              </p>
+              <p className="text-sm text-gray-500">{user?.email}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Navigation */}
+        <nav className="flex-1 p-4">
+          <ul className="space-y-2">
+            {menuItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <li key={item.id}>
+                  <button
+                    onClick={() => handleItemClick(item.id)}
+                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left transition-colors ${
+                      activeView === item.id
+                        ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700'
+                        : 'text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    <Icon className="w-5 h-5" />
+                    <span className="font-medium">{item.label}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
+
+        {/* Logout */}
+        <div className="p-4 border-t">
+          <button
+            onClick={logout}
+            className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left text-red-600 hover:bg-red-50 transition-colors"
+          >
+            <LogOut className="w-5 h-5" />
+            <span className="font-medium">Logout</span>
+          </button>
+        </div>
+      </div>
+    </>
+  );
+};
+
+// Payments Component
+const Payments = () => {
+  const [payments, setPayments] = useState([]);
+  const [subscriptions, setSubscriptions] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadPaymentData();
+  }, []);
+
+  const loadPaymentData = async () => {
+    try {
+      const [paymentsResponse, subscriptionsResponse] = await Promise.all([
+        apiService.getPaymentHistory(),
+        apiService.getSubscriptions()
+      ]);
+
+      if (paymentsResponse.success) {
+        setPayments(paymentsResponse.payments);
+      }
+
+      if (subscriptionsResponse.success) {
+        setSubscriptions(subscriptionsResponse.subscriptions);
+      }
+    } catch (error) {
+      console.error('Error loading payment data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">Payments & Subscriptions</h1>
+        <p className="text-gray-600">Manage your subscriptions and payment history</p>
+      </div>
+
+      {/* Active Subscriptions */}
+      <div className="bg-white rounded-xl shadow-sm border">
+        <div className="p-6 border-b">
+          <h2 className="text-lg font-semibold text-gray-900">Active Subscriptions</h2>
+        </div>
+        <div className="p-6">
+          {subscriptions.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {subscriptions.map((subscription, index) => (
+                <div key={index} className="border rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-medium text-gray-900">{subscription.subject_name}</h3>
+                    <span className={`px-2 py-1 rounded-full text-xs ${
+                      subscription.is_expired 
+                        ? 'bg-red-100 text-red-800' 
+                        : 'bg-green-100 text-green-800'
+                    }`}>
+                      {subscription.is_expired ? 'Expired' : 'Active'}
+                    </span>
+                  </div>
+                  <div className="space-y-2 text-sm text-gray-600">
+                    <p>Expires: {formatDate(subscription.expires_at)}</p>
+                    <p>{subscription.days_remaining} days remaining</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-500 text-center py-8">No active subscriptions</p>
+          )}
+        </div>
+      </div>
+
+      {/* Payment History */}
+      <div className="bg-white rounded-xl shadow-sm border">
+        <div className="p-6 border-b">
+          <h2 className="text-lg font-semibold text-gray-900">Payment History</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Subject
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Amount
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Method
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Date
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {payments.length > 0 ? (
+                payments.map((payment, index) => (
+                  <tr key={index}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {payment.subject_name}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      UGX {payment.amount?.toLocaleString('en-UG')}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {payment.payment_method}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        payment.status === 'COMPLETED' 
+                          ? 'bg-green-100 text-green-800'
+                          : payment.status === 'PENDING'
+                          ? 'bg-yellow-100 text-yellow-800'
+                          : 'bg-red-100 text-red-800'
+                      }`}>
+                        {payment.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {formatDate(payment.created_at)}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="5" className="px-6 py-12 text-center text-gray-500">
+                    No payment history available
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Profile Component
+const Profile = () => {
+  const { user } = useAuth();
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">Profile Settings</h1>
+        <p className="text-gray-600">Manage your account information</p>
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm border">
+        <div className="p-6 border-b">
+          <h2 className="text-lg font-semibold text-gray-900">Personal Information</h2>
+        </div>
+        <div className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                First Name
+              </label>
+              <input
+                type="text"
+                value={user?.first_name || ''}
+                disabled
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Last Name
+              </label>
+              <input
+                type="text"
+                value={user?.last_name || ''}
+                disabled
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Username
+              </label>
+              <input
+                type="text"
+                value={user?.username || ''}
+                disabled
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Email
+              </label>
+              <input
+                type="email"
+                value={user?.email || ''}
+                disabled
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Phone Number
+              </label>
+              <input
+                type="text"
+                value={user?.phone_number || ''}
+                disabled
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Network Provider
+              </label>
+              <input
+                type="text"
+                value={user?.network_provider || 'Not specified'}
+                disabled
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50"
+              />
+            </div>
+          </div>
+          
+          <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+            <p className="text-blue-800 text-sm">
+              To update your profile information, please contact support at timmehta71@gmail.com
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Main Layout Component
+// 3. Replace your existing Layout component with this updated version
+const Layout = () => {
+  const [activeView, setActiveView] = useState('dashboard');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  
+  const renderActiveView = () => {
+    switch (activeView) {
+      case 'dashboard':
+        return <Dashboard />;
+      case 'subjects':
+        return <Subjects />;
+      case 'progress':
+        return <Progress />;
+      case 'payments':
+        return <Payments />;
+      case 'profile':
+        return <Profile />;
+      default:
+        return <Dashboard />;
+    }
+  };
+
+  return (
+    <div className="h-screen bg-gray-50">
+      {/* Mobile header with menu button - Always visible on mobile */}
+      <div className="md:hidden bg-white border-b px-4 py-3 flex items-center justify-between relative z-30">
+        <button 
+          onClick={() => setSidebarOpen(true)}
+          className="p-2 rounded-lg hover:bg-gray-100"
+        >
+          <Menu className="w-6 h-6 text-gray-600" />
+        </button>
+        <div className="flex items-center space-x-2">
+          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 w-8 h-8 rounded-full flex items-center justify-center">
+            <BookOpen className="w-5 h-5 text-white" />
+          </div>
+          <h1 className="text-lg font-bold text-gray-900">YourTutor</h1>
+        </div>
+      </div>
+
+      <div className="flex h-full md:h-screen">
+        {/* Single sidebar that works for both desktop and mobile */}
+        <div className="w-64 flex-shrink-0 hidden md:block">
+          <Sidebar 
+            activeView={activeView} 
+            setActiveView={setActiveView}
+            isOpen={true}
+            setIsOpen={() => {}}
+          />
+        </div>
+
+        {/* Mobile sidebar overlay */}
+        {sidebarOpen && (
+          <Sidebar 
+            activeView={activeView} 
+            setActiveView={setActiveView}
+            isOpen={sidebarOpen}
+            setIsOpen={setSidebarOpen}
+          />
+        )}
+
+        <div className="flex-1 overflow-auto flex flex-col">
+          <div className="flex-1 p-6">
+            {renderActiveView()}
+          </div>
+          <footer className="bg-gray-200 text-center py-4 text-gray-700 text-sm">
+            &copy; {new Date().getFullYear()} YourTutor. All rights reserved.<br />
+            Contact: +256705251258 / +256780513947 | Email: timmehta71@gmail.com
+          </footer>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Main App Component
+const App = () => {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return user ? <Layout /> : <LoginForm />;
+};
+
+// Root App with Auth Provider
+export default function QuizApp() {
+  return (
+    <AuthProvider>
+      <App />
+    </AuthProvider>
+  );
+}
