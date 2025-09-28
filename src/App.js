@@ -2,7 +2,8 @@ import React, { useState, useEffect, useReducer } from 'react';
 import { User, BookOpen, Trophy, Clock, CheckCircle, XCircle, BarChart3, CreditCard, LogOut, Settings, Home, ArrowRight, Target, TrendingUp, Award, RotateCcw, Phone } from 'lucide-react';
 import { Menu, X } from 'lucide-react';
 
-const API_BASE_URL = 'http://localhost:8000/api'; // Adjust to your backend URL
+const API_BASE_URL = 'https://yourtutor.pythonanywhere.com/api';
+//const API_BASE_URL = 'http://localhost:8000/api'; // Adjust to your backend URL
 
 // Auth Context
 const AuthContext = React.createContext();
