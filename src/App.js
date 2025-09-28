@@ -130,6 +130,22 @@ const apiService = {
     });
   },
 
+  // 4. FIND your apiService object and ADD these two methods to it:
+  // (Add these inside your existing apiService object)
+  async requestPasswordReset(email) {
+    return this.request('/auth/password-reset/', {
+      method: 'POST',
+      body: JSON.stringify({ email })
+    });
+  },
+
+  async resetPassword(token, newPassword) {
+    return this.request('/auth/password-reset/confirm/', {
+      method: 'POST',
+      body: JSON.stringify({ token, password: newPassword })
+    });
+  },
+
   async getPaymentHistory() {
     return this.request('/payments/history/');
   }
@@ -318,10 +334,12 @@ const useAuth = () => {
 };
 
 // Login Component
+// 2. FIND your existing LoginForm component and REPLACE it entirely with this:
 const LoginForm = () => {
   const [formData, setFormData] = useState({ username: '', password: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [currentView, setCurrentView] = useState('login'); // 'login', 'register', 'forgot-password'
   const { login } = useAuth();
 
   const handleSubmit = async (e) => {
@@ -341,6 +359,15 @@ const LoginForm = () => {
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
+
+  // Handle different views
+  if (currentView === 'register') {
+    return <RegistrationForm onSwitchToLogin={() => setCurrentView('login')} />;
+  }
+
+  if (currentView === 'forgot-password') {
+    return <ForgotPasswordForm onSwitchToLogin={() => setCurrentView('login')} />;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
@@ -396,12 +423,539 @@ const LoginForm = () => {
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
+
+        <div className="mt-4 text-center">
+          <button
+            onClick={() => setCurrentView('forgot-password')}
+            className="text-sm text-blue-600 hover:text-blue-700"
+          >
+            Forgot your password?
+          </button>
+        </div>
+
+        <div className="mt-6 text-center">
+          <p className="text-gray-600">
+            Don't have an account?{' '}
+            <button
+              onClick={() => setCurrentView('register')}
+              className="text-blue-600 hover:text-blue-700 font-medium"
+            >
+              Sign Up
+            </button>
+          </p>
+        </div>
       </div>
     </div>
   );
 };
 
+// 3. ADD these 4 components RIGHT AFTER your LoginForm component:
 
+// Registration Component
+const RegistrationForm = ({ onSwitchToLogin }) => {
+  const [formData, setFormData] = useState({
+    username: '',
+    email: '',
+    first_name: '',
+    last_name: '',
+    phone_number: '',
+    password: '',
+    password_confirm: ''
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    if (formData.password !== formData.password_confirm) {
+      setError('Passwords do not match');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const response = await apiService.register(formData);
+      
+      if (response.success) {
+        setSuccess(true);
+        // Auto-switch to login after successful registration
+        setTimeout(() => {
+          onSwitchToLogin();
+        }, 2000);
+      } else {
+        setError(response.errors ? 
+          Object.values(response.errors).flat().join(', ') : 
+          'Registration failed'
+        );
+      }
+    } catch (error) {
+      setError(error.message || 'Registration failed');
+    }
+    
+    setLoading(false);
+  };
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  if (success) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md text-center">
+          <div className="bg-green-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+            <CheckCircle className="w-8 h-8 text-green-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Registration Successful!</h2>
+          <p className="text-gray-600 mb-4">
+            Your account has been created successfully. You will be redirected to the login page.
+          </p>
+          <button
+            onClick={onSwitchToLogin}
+            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-200"
+          >
+            Go to Login
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
+        <div className="text-center mb-8">
+          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+            <BookOpen className="w-8 h-8 text-white" />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900">Create Account</h1>
+          <p className="text-gray-600 mt-2">Join YourTutor today</p>
+        </div>
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                First Name
+              </label>
+              <input
+                type="text"
+                name="first_name"
+                value={formData.first_name}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Last Name
+              </label>
+              <input
+                type="text"
+                name="last_name"
+                value={formData.last_name}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Username
+            </label>
+            <input
+              type="text"
+              name="username"
+              value={formData.username}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Email
+            </label>
+            <input
+              type="email"
+              name="email"
+              value={formData.email}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Phone Number
+            </label>
+            <input
+              type="tel"
+              name="phone_number"
+              value={formData.phone_number}
+              onChange={handleChange}
+              placeholder="e.g., 0705251258"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              required
+            />
+            <p className="text-xs text-gray-500 mt-1">Enter Uganda phone number</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Password
+            </label>
+            <input
+              type="password"
+              name="password"
+              value={formData.password}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              required
+              minLength="8"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Confirm Password
+            </label>
+            <input
+              type="password"
+              name="password_confirm"
+              value={formData.password_confirm}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              required
+              minLength="8"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 disabled:opacity-50"
+          >
+            {loading ? 'Creating Account...' : 'Create Account'}
+          </button>
+        </form>
+
+        <div className="mt-6 text-center">
+          <p className="text-gray-600">
+            Already have an account?{' '}
+            <button
+              onClick={onSwitchToLogin}
+              className="text-blue-600 hover:text-blue-700 font-medium"
+            >
+              Sign In
+            </button>
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Forgot Password Component
+const ForgotPasswordForm = ({ onSwitchToLogin }) => {
+  const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await apiService.requestPasswordReset(email);
+      
+      if (response.success) {
+        setSuccess(true);
+      } else {
+        setError(response.message || 'Failed to send reset email');
+      }
+    } catch (error) {
+      setError('Failed to send reset email. Please try again.');
+    }
+    
+    setLoading(false);
+  };
+
+  if (success) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md text-center">
+          <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+            <CheckCircle className="w-8 h-8 text-blue-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Check Your Email</h2>
+          <p className="text-gray-600 mb-6">
+            We've sent a password reset link to <strong>{email}</strong>. 
+            Please check your email and follow the instructions to reset your password.
+          </p>
+          <button
+            onClick={onSwitchToLogin}
+            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-200"
+          >
+            Back to Login
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
+        <div className="text-center mb-8">
+          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+            <BookOpen className="w-8 h-8 text-white" />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900">Reset Password</h1>
+          <p className="text-gray-600 mt-2">Enter your email to receive reset instructions</p>
+        </div>
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Email Address
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              required
+              placeholder="Enter your email address"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 disabled:opacity-50"
+          >
+            {loading ? 'Sending...' : 'Send Reset Link'}
+          </button>
+        </form>
+
+        <div className="mt-6 text-center">
+          <p className="text-gray-600">
+            Remember your password?{' '}
+            <button
+              onClick={onSwitchToLogin}
+              className="text-blue-600 hover:text-blue-700 font-medium"
+            >
+              Sign In
+            </button>
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Password Reset Confirmation Component
+const PasswordResetConfirm = ({ token, onComplete }) => {
+  const [formData, setFormData] = useState({
+    password: '',
+    password_confirm: ''
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    if (formData.password !== formData.password_confirm) {
+      setError('Passwords do not match');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const response = await apiService.resetPassword(token, formData.password);
+      
+      if (response.success) {
+        setSuccess(true);
+        setTimeout(() => {
+          onComplete();
+        }, 2000);
+      } else {
+        setError(response.message || 'Failed to reset password');
+      }
+    } catch (error) {
+      setError('Failed to reset password. Please try again.');
+    }
+    
+    setLoading(false);
+  };
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  if (success) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md text-center">
+          <div className="bg-green-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+            <CheckCircle className="w-8 h-8 text-green-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Password Reset Successfully!</h2>
+          <p className="text-gray-600 mb-4">
+            Your password has been reset successfully. You can now sign in with your new password.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
+        <div className="text-center mb-8">
+          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+            <BookOpen className="w-8 h-8 text-white" />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900">Set New Password</h1>
+          <p className="text-gray-600 mt-2">Enter your new password</p>
+        </div>
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              New Password
+            </label>
+            <input
+              type="password"
+              name="password"
+              value={formData.password}
+              onChange={handleChange}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              required
+              minLength="8"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Confirm New Password
+            </label>
+            <input
+              type="password"
+              name="password_confirm"
+              value={formData.password_confirm}
+              onChange={handleChange}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              required
+              minLength="8"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 disabled:opacity-50"
+          >
+            {loading ? 'Resetting Password...' : 'Reset Password'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// Password Reset Handler Component
+const PasswordResetHandler = () => {
+  const [token, setToken] = useState('');
+  const [validToken, setValidToken] = useState(null);
+  
+  useEffect(() => {
+    // Extract token from URL params (e.g., /reset-password?token=abc123)
+    const urlParams = new URLSearchParams(window.location.search);
+    const resetToken = urlParams.get('token');
+    
+    if (resetToken) {
+      setToken(resetToken);
+      setValidToken(true);
+    } else {
+      setValidToken(false);
+    }
+  }, []);
+
+  if (validToken === false) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md text-center">
+          <div className="bg-red-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+            <XCircle className="w-8 h-8 text-red-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Invalid Reset Link</h2>
+          <p className="text-gray-600 mb-6">
+            This password reset link is invalid or has expired. Please request a new one.
+          </p>
+          <button
+            onClick={() => window.location.href = '/'}
+            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-200"
+          >
+            Go to Login
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (validToken && token) {
+    return (
+      <PasswordResetConfirm 
+        token={token} 
+        onComplete={() => window.location.href = '/'} 
+      />
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
+        <p className="text-gray-600">Loading...</p>
+      </div>
+    </div>
+  );
+};
 
 // Enhanced Quiz Component
 const Quiz = ({ state, dispatch, navigate }) => {
@@ -1923,23 +2477,33 @@ const Layout = () => {
   );
 };
 
-// Main App Component
-const App = () => {
-  const { user, loading } = useAuth();
+  // Main App Component
+  // 5. FIND your main App component and REPLACE it with this:
+  const App = () => {
+    const { user, loading } = useAuth();
+    
+    // Check if this is a password reset URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const isPasswordReset = urlParams.has('token');
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
+    if (loading) {
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading...</p>
+          </div>
         </div>
-      </div>
-    );
-  }
+      );
+    }
 
-  return user ? <Layout /> : <LoginForm />;
-};
+    // Handle password reset URLs
+    if (isPasswordReset) {
+      return <PasswordResetHandler />;
+    }
+
+    return user ? <Layout /> : <LoginForm />;
+  };
 
 // Root App with Auth Provider
 export default function QuizApp() {
