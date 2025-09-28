@@ -51,6 +51,7 @@ const apiService = {
   async request(endpoint, options = {}) {
     const token = localStorage.getItem('token');
     const config = {
+      method: 'GET',
       headers: {
         'Content-Type': 'application/json',
         ...(token && { Authorization: `Token ${token}` }),
@@ -145,6 +146,21 @@ const apiService = {
       body: JSON.stringify({ token, password: newPassword })
     });
   },
+
+  // Add these methods to your apiService object:
+  async verifyEmail(token) {
+    return this.request('/auth/verify-email/', {
+      method: 'POST',
+      body: JSON.stringify({ token })
+    });
+  },
+
+  async resendVerification(email) {
+    return this.request('/auth/resend-verification/', {
+      method: 'POST',
+      body: JSON.stringify({ email })
+    });
+  },  
 
   async getPaymentHistory() {
     return this.request('/payments/history/');
