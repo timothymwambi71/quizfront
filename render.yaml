@@ -1,0 +1,6 @@
+static:
+  # Your existing configurations here
+  routes:
+    - type: rewrite
+      source: /*
+      destination: /index.html
