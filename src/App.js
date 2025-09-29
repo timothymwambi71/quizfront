@@ -62,15 +62,9 @@ const apiService = {
       ...options
     };
 
-    console.log('Request config:', { endpoint, config }); // Debug log
-
     try {
       const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
-      
-      console.log('Response status:', response.status); // Debug log
-      
       const data = await response.json();
-      console.log('Response data:', data); // Debug log
       
       if (!response.ok) {
         throw new Error(data.message || data.detail || 'API request failed');
@@ -78,20 +72,20 @@ const apiService = {
       
       return data;
     } catch (error) {
-      console.error(`API Error (${endpoint}):`, error);
+      // Only log in development
+      if (process.env.NODE_ENV === 'development') {
+        console.error(`API Error (${endpoint}):`, error);
+      }
       throw error;
     }
   },
 
   // Auth endpoints
   async login(username, password) {
-    console.log('Login attempt:', { username, password }); // Debug log
-    const response = await this.request('/auth/login/', {
+    return this.request('/auth/login/', {
       method: 'POST',
       body: JSON.stringify({ username, password })
     });
-    console.log('Login response:', response); // Debug log
-    return response;
   },
 
   async register(userData) {
