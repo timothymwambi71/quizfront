@@ -1762,7 +1762,7 @@ const Subjects = () => {
 };
 
 // Dashboard Component
-const Dashboard = () => {
+const Dashboard = ({ setActiveView }) => {
   const { user } = useAuth();
   const [stats, setStats] = useState({
     totalAttempts: 0,
@@ -1839,8 +1839,20 @@ const Dashboard = () => {
   return (
     <div className="space-y-6">
       <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl p-6 text-white">
-        <h1 className="text-2xl font-bold">Welcome back, {user?.first_name || user?.username}!</h1>
-        <p className="opacity-90 mt-2">Ready to continue your learning journey?</p>
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold">Welcome back, {user?.first_name || user?.username}!</h1>
+            <p className="opacity-90 mt-2">Ready to continue your learning journey?</p>
+          </div>
+          <button
+            onClick={() => setActiveView('subjects')}
+            className="bg-white text-blue-600 px-6 py-3 rounded-lg font-semibold hover:bg-blue-50 transition-colors shadow-lg flex items-center justify-center gap-2 whitespace-nowrap"
+          >
+            <BookOpen className="w-5 h-5" />
+            <span>Start Taking Quizzes</span>
+            <ArrowRight className="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -2559,7 +2571,7 @@ const Layout = () => {
   const renderActiveView = () => {
     switch (activeView) {
       case 'dashboard':
-        return <Dashboard />;
+        return <Dashboard setActiveView={setActiveView} />;
       case 'subjects':
         return <Subjects />;
       case 'progress':
