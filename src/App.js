@@ -509,14 +509,11 @@ const RegistrationForm = ({ onSwitchToLogin }) => {
       
       if (response.success) {
         setSuccess(true);
-        // Auto-switch to login after successful registration
-        setTimeout(() => {
-          onSwitchToLogin();
-        }, 2000);
+        // Remove the setTimeout that auto-redirects to login
       } else {
         setError(response.errors ? 
           Object.values(response.errors).flat().join(', ') : 
-          'Registration failed'
+          response.message || 'Registration failed'
         );
       }
     } catch (error) {
@@ -534,13 +531,34 @@ const RegistrationForm = ({ onSwitchToLogin }) => {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md text-center">
-          <div className="bg-green-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-            <CheckCircle className="w-8 h-8 text-green-600" />
+          <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+            <CheckCircle className="w-8 h-8 text-blue-600" />
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Registration Successful!</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Check Your Email!</h2>
           <p className="text-gray-600 mb-4">
-            Your account has been created successfully. You will be redirected to the login page.
+            We've sent a verification link to <strong>{formData.email}</strong>
           </p>
+          <p className="text-gray-600 mb-6">
+            Please check your email and click the verification link to activate your account before signing in.
+          </p>
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+            <p className="text-sm text-yellow-800">
+              Didn't receive the email? Check your spam folder or click below to resend.
+            </p>
+          </div>
+          <button
+            onClick={async () => {
+              try {
+                await apiService.resendVerification(formData.email);
+                alert('Verification email resent!');
+              } catch (error) {
+                alert('Failed to resend email. Please try again.');
+              }
+            }}
+            className="w-full bg-gray-200 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors mb-3"
+          >
+            Resend Verification Email
+          </button>
           <button
             onClick={onSwitchToLogin}
             className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-200"
