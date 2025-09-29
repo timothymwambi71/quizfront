@@ -2,8 +2,8 @@ import React, { useState, useEffect, useReducer } from 'react';
 import { User, BookOpen, Trophy, Clock, CheckCircle, XCircle, BarChart3, CreditCard, LogOut, Settings, Home, ArrowRight, Target, TrendingUp, Award, RotateCcw, Phone } from 'lucide-react';
 import { Menu, X } from 'lucide-react';
 
-const API_BASE_URL = 'https://yourtutor.pythonanywhere.com/api';
-//const API_BASE_URL = 'http://localhost:8000/api'; // Adjust to your backend URL
+//const API_BASE_URL = 'https://yourtutor.pythonanywhere.com/api';
+const API_BASE_URL = 'http://localhost:8000/api'; // Adjust to your backend URL
 
 // Auth Context
 const AuthContext = React.createContext();
@@ -48,6 +48,8 @@ const apiService = {
       }
     });
   },
+
+
   async request(endpoint, options = {}) {
     const token = localStorage.getItem('token');
     const config = {
@@ -60,12 +62,18 @@ const apiService = {
       ...options
     };
 
+    console.log('Request config:', { endpoint, config }); // Debug log
+
     try {
       const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+      
+      console.log('Response status:', response.status); // Debug log
+      
       const data = await response.json();
+      console.log('Response data:', data); // Debug log
       
       if (!response.ok) {
-        throw new Error(data.message || 'API request failed');
+        throw new Error(data.message || data.detail || 'API request failed');
       }
       
       return data;
@@ -77,10 +85,13 @@ const apiService = {
 
   // Auth endpoints
   async login(username, password) {
-    return this.request('/auth/login/', {
+    console.log('Login attempt:', { username, password }); // Debug log
+    const response = await this.request('/auth/login/', {
       method: 'POST',
       body: JSON.stringify({ username, password })
     });
+    console.log('Login response:', response); // Debug log
+    return response;
   },
 
   async register(userData) {
