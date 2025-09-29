@@ -989,6 +989,99 @@ const PasswordResetHandler = () => {
   );
 };
 
+// Email Verification Handler Component
+const EmailVerificationHandler = () => {
+  const [verifying, setVerifying] = useState(true);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const verifyEmail = async () => {
+      // Get token from URL or hash
+      let token = new URLSearchParams(window.location.search).get('verify-email');
+      
+      if (!token && window.location.hash) {
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        token = hashParams.get('verify-email');
+      }
+
+      if (!token) {
+        setError('Invalid verification link');
+        setVerifying(false);
+        return;
+      }
+
+      try {
+        const response = await apiService.verifyEmail(token);
+        
+        if (response.success) {
+          setSuccess(true);
+        } else {
+          setError(response.message || 'Verification failed');
+        }
+      } catch (err) {
+        setError('Verification failed. Please try again.');
+      } finally {
+        setVerifying(false);
+      }
+    };
+
+    verifyEmail();
+  }, []);
+
+  if (verifying) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Verifying Email...</h2>
+          <p className="text-gray-600">Please wait while we verify your email address.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (success) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md text-center">
+          <div className="bg-green-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+            <CheckCircle className="w-8 h-8 text-green-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Email Verified!</h2>
+          <p className="text-gray-600 mb-6">
+            Your email has been successfully verified. You can now sign in to your account.
+          </p>
+          <button
+            onClick={() => window.location.href = '/'}
+            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-200"
+          >
+            Go to Login
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md text-center">
+        <div className="bg-red-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+          <XCircle className="w-8 h-8 text-red-600" />
+        </div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-4">Verification Failed</h2>
+        <p className="text-gray-600 mb-6">{error}</p>
+        <button
+          onClick={() => window.location.href = '/'}
+          className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-200"
+        >
+          Go to Login
+        </button>
+      </div>
+    </div>
+  );
+};
+
 
 // Enhanced Quiz Component
 const Quiz = ({ state, dispatch, navigate }) => {
@@ -2512,14 +2605,15 @@ const Layout = () => {
 
   // Main App Component
   // 5. FIND your main App component and REPLACE it with this:
-// Updated App Component
 const App = () => {
   const { user, loading } = useAuth();
   
-  // Check if this is a password reset URL - check both search params and hash
+  // Check URL parameters
   const urlParams = new URLSearchParams(window.location.search);
   const hashParams = new URLSearchParams(window.location.hash.substring(1));
+  
   const isPasswordReset = urlParams.has('token') || hashParams.has('token');
+  const isEmailVerification = urlParams.has('verify-email') || hashParams.has('verify-email');
 
   if (loading) {
     return (
@@ -2530,6 +2624,11 @@ const App = () => {
         </div>
       </div>
     );
+  }
+
+  // Handle email verification URLs
+  if (isEmailVerification) {
+    return <EmailVerificationHandler />;
   }
 
   // Handle password reset URLs
