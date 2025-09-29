@@ -2251,12 +2251,15 @@ const Sidebar = ({ activeView, setActiveView, isOpen, setIsOpen }) => {
         {/* Logo and User Info */}
         <div className="p-6 border-b">
           <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center space-x-3">
+            <button 
+              onClick={() => handleItemClick('dashboard')}
+              className="flex items-center space-x-3 hover:opacity-80 transition-opacity"
+            >
               <div className="bg-gradient-to-r from-blue-600 to-indigo-600 w-10 h-10 rounded-full flex items-center justify-center">
                 <BookOpen className="w-6 h-6 text-white" />
               </div>
               <h1 className="text-xl font-bold text-gray-900">YourTutor</h1>
-            </div>
+            </button>
             {/* Close button for mobile */}
             <button 
               onClick={() => setIsOpen(false)}
@@ -2595,12 +2598,15 @@ const Layout = () => {
         >
           <Menu className="w-6 h-6 text-gray-600" />
         </button>
-        <div className="flex items-center space-x-2">
+        <button 
+          onClick={() => setActiveView('dashboard')}
+          className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
+        >
           <div className="bg-gradient-to-r from-blue-600 to-indigo-600 w-8 h-8 rounded-full flex items-center justify-center">
             <BookOpen className="w-5 h-5 text-white" />
           </div>
           <h1 className="text-lg font-bold text-gray-900">YourTutor</h1>
-        </div>
+        </button>
       </div>
 
       <div className="flex h-full md:h-screen">
