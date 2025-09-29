@@ -1976,7 +1976,7 @@ const Dashboard = () => {
 };
 
 // Progress Component
-const Progress = () => {
+const Progress = ({ setActiveView }) => {
   const [attempts, setAttempts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedAttempt, setSelectedAttempt] = useState(null);
@@ -2113,7 +2113,10 @@ const Progress = () => {
           <Trophy className="w-16 h-16 text-gray-300 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No Quiz Attempts Yet</h3>
           <p className="text-gray-600 mb-6">Start taking quizzes to track your progress</p>
-          <button className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700">
+          <button 
+            onClick={() => setActiveView('subjects')}
+            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+          >
             Browse Subjects
           </button>
         </div>
@@ -2560,7 +2563,7 @@ const Layout = () => {
       case 'subjects':
         return <Subjects />;
       case 'progress':
-        return <Progress />;
+        return <Progress setActiveView={setActiveView} />;
       case 'payments':
         return <Payments />;
       case 'profile':
