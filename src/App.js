@@ -23,6 +23,8 @@ const formatTime = (seconds) => {
   return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
 };
 
+
+
 // API service
 const apiService = {
   // Add these methods to your existing apiService object:
@@ -52,13 +54,19 @@ const apiService = {
 
   async request(endpoint, options = {}) {
     const token = localStorage.getItem('token');
+  
+    
     const config = {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
         ...(token && { Authorization: `Token ${token}` }),
+        
+        
         ...options.headers
       },
+      
+      
       ...options
     };
 
@@ -72,13 +80,13 @@ const apiService = {
       
       return data;
     } catch (error) {
-      // Only log in development
       if (process.env.NODE_ENV === 'development') {
         console.error(`API Error (${endpoint}):`, error);
       }
       throw error;
     }
   },
+
 
   // Auth endpoints
   async login(username, password) {
