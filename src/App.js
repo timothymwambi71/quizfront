@@ -1467,6 +1467,7 @@ const SubscriptionActivation = ({ subject, onBack }) => {
 // Subjects Component
 // Enhanced Subjects Component with Quiz Integration
 const Subjects = () => {
+  const { user } = useAuth();  // ADD THIS LINE
   const [subjects, setSubjects] = useState([]);
   const [subscriptions, setSubscriptions] = useState([]);
   const [loading, setLoading] = useState(true);
