@@ -1698,6 +1698,15 @@ const Subjects = () => {
           <p><strong>Email:</strong> timmehta71@gmail.com</p>
           
         </div>
+        {/* ADD THIS SECTION HERE */}
+        <div className="bg-white p-4 rounded-lg text-left">
+          <h5 className="font-semibold text-blue-900 mb-2">What to mention when calling:</h5>
+          <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
+            <li>Your username: <span className="font-medium">{user?.username}</span></li>
+            <li>The subject you want to subscribe to</li>
+            <li>Preferred payment method (MTN/Airtel Mobile Money)</li>
+          </ul>
+        </div>        
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
