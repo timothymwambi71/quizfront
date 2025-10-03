@@ -1739,6 +1739,7 @@ const Subjects = () => {
                 <div className="space-y-3 mb-6">
                   <p className="text-2xl font-bold text-blue-600">
                     UGX {subject.price?.toLocaleString('en-UG') || 'N/A'}
+                    <span className="text-base text-gray-500 font-normal ml-2">/month</span>
                   </p>
                   <p className="text-sm text-gray-600">
                     {subject.topics?.length || 0} topics available
